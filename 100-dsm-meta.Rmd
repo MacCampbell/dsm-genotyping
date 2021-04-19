@@ -19,7 +19,8 @@ Let's load up the data and get an idea of what there is, then align to genome an
 Note: "If col_types = NULL, and a column has the first 1000 rows with a value of NA, read_csv specifies the column as logical."    
 I copied the last row to the top...   
 ```{r}
-meta<-read_csv("meta/meta.csv") %>% select(`Library Name`, `Plate location`, filename, `Unique ID`, `Plate ID`, `Sample ID`, `Date collected`, `Birth year`,
+meta<-read_csv("meta/meta.csv") %>% select(`Library Name`, `Library Index`,
+                                           `Plate location`, filename, `Unique ID`, `Plate ID`, `Sample ID`, `Date collected`, `Birth year`,
                                            `Fork Length (mm)`, `Julian day`, `Station ID`, `Field ID`) %>%
   filter(!(`Plate location` == "Plate location")) %>% 
   unique()
@@ -52,5 +53,16 @@ ggplot(sub %>% group_by(`Birth year`) %>% summarize(Count=n())) +
 write_csv(sub, "meta/dsm-since-2010.csv")
 ```
 
-That's a boring bar plot.
+That's a boring bar plot.    
+
+The data appear to be here: `/group/millermrgrp2/shannon/projects/DS_history/data/Library Name/Library Index/Ht01-01_1995_A01_R[1|2].fastq`. Let's set up paths that reflect that.
+
+```{r}
+reads<-sub %>% mutate(Forward=paste0("/group/millermrgrp2/shannon/projects/DS_history/data/",`Library Name`,"/",`Library Index`,"/",filename,"_R1.fastq")) %>%
+  mutate(Reverse=paste0("/group/millermrgrp2/shannon/projects/DS_history/data/",`Library Name`,"/",`Library Index`,"/",filename,"_R2.fastq")) %>%
+  select(Forward, Reverse)
+write_tsv(reads, "meta/2011-2014-reads.tsv", col_names = FALSE)
+```
+
+Now we should within /data/ align these fastqs.
 
