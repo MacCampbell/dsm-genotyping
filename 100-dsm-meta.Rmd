@@ -1,0 +1,56 @@
+---
+title: "100-dsm-meta"
+author: "Mac Campbell"
+date: "April 19, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+## meta
+Let's load up the data and get an idea of what there is, then align to genome and conduct some basic QC (coverage, look at a PCA).
+Note: "If col_types = NULL, and a column has the first 1000 rows with a value of NA, read_csv specifies the column as logical."    
+I copied the last row to the top...   
+```{r}
+meta<-read_csv("meta/meta.csv") %>% select(`Library Name`, `Plate location`, filename, `Unique ID`, `Plate ID`, `Sample ID`, `Date collected`, `Birth year`,
+                                           `Fork Length (mm)`, `Julian day`, `Station ID`, `Field ID`) %>%
+  filter(!(`Plate location` == "Plate location")) %>% 
+  unique()
+```
+
+```{r}
+d<-meta %>% group_by(`Birth year`) %>% summarize(Count=n())
+ggplot(d) + geom_bar(aes(x=`Birth year`, y=Count), stat="identity") +
+  theme_bw() +
+  ggtitle("Number of DSM Samples for Each Birth Year") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  theme(axis.text.x = element_text(angle=45, vjust=.5))
+```
+
+
+## Which ones do we want?
+
+Last 5 years of data?  Well I don't have that really, `Birth year` > 2010 gives 768 samples. Birth year > 2007 gives 1,177.
+
+```{r}
+sub<-meta %>% filter(`Birth year` > 2010) %>% arrange(`Library Name`,`Plate location`)
+
+ggplot(sub %>% group_by(`Birth year`) %>% summarize(Count=n())) + 
+  geom_bar(aes(x=`Birth year`, y=Count), stat="identity") +
+  theme_bw() +
+  ggtitle("Number of DSM Samples for Each Birth Year") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  theme(axis.text.x = element_text(angle=45, vjust=.5))
+
+write_csv(sub, "meta/dsm-since-2010.csv")
+```
+
+That's a boring bar plot.
+
