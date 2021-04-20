@@ -64,5 +64,4 @@ reads<-sub %>% mutate(Forward=paste0("/group/millermrgrp2/shannon/projects/DS_hi
 write_tsv(reads, "meta/2011-2014-reads.tsv", col_names = FALSE)
 ```
 
-Now we should within /data/ align these fastqs.
 

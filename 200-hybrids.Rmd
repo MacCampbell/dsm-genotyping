@@ -1,0 +1,13 @@
+---
+title: "200-hybrids"
+author: "Mac Campbell"
+date: "April 19, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message = FALSE)
+```
+
+## Other species
+Finding some markers for osmerids.

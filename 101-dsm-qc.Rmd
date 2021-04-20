@@ -1,0 +1,96 @@
+---
+title: "101-dsm-qc.Rmd"
+author: "Mac Campbell"
+date: "April 19, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## QC
+
+Let's see if we succesfully aligned our samples, then, we can take a look at the number of aligned reads.         
+
+Now we should within /data/ align these fastqs.     
+`maccamp@farm:~/dsm-genotyping/data$ cut -f 1 ../meta/2011-2014-reads.tsv | while read line; do ln -s $line .; done;`    
+`maccamp@farm:~/dsm-genotyping/data$ cut -f 2 ../meta/2011-2014-reads.tsv | while read line; do ln -s $line .; done;`    
+`maccamp@farm:~/dsm-genotyping/data$ cat ../meta/2011-2014-reads.tsv | perl -pe  's/\/group\/millermrgrp2\/shannon\/projects\/DS_history\/data\/BMAG\d+\/[A|G|C|T]+\///g' | perl -pe 's/\.fastq//g' > seqs.txt`    
+`maccamp@farm:~/dsm-genotyping/data$ ../100.1-do-align.sh seqs.txt $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa`     
+
+Now to check back in a bit and see how they turned out.      
+72 samples are missing. They are of the form Ht18-1_2011_A01_R1.fastq instead of Ht18-01_2011_A01_R1.fastq      
+`grep "fail to open file"  temp.out  | cut -f 2 -d '`'  > part-two.txt`     
+`sed 's/..$//' part-two.txt  > part-two-clean.txt`    
+`cat part-two-clean.txt | while read line; do grep $line ../meta/2011-2014-reads.tsv >> part-two-seqs.txt; done;`    
+
+`maccamp@farm:~/dsm-genotyping/data$ cat part-two-seqs.txt | perl -pe 's/Ht(\d\d)-/Ht$1-0/g' > part-two-renamed.txt`    
+`cut -f 1 part-two-renamed.txt | while read line; do ln -s $line .; done;`     
+`cut -f 2 part-two-renamed.txt | while read line; do ln -s $line .; done;` 
+`cat part-two-renamed.txt | perl -pe  's/\/group\/millermrgrp2\/shannon\/projects\/DS_history\/data\/BMAG\d+\/[A|G|C|T]+\///g' | perl -pe 's/\.fastq//g' > part-two-renamed-local.txt`     
+`../100.1-do-align.sh part-two-renamed-local.txt $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa`    
+
+That's gross! 
+
+Fixing names from 2011-2014.    
+`(base) Macs-MacBook-Pro-2:meta mac$ cat dsm-since-2010.csv | perl -pe 's/Ht(\d\d)-(\d)_/Ht$1-0$2_/g' > dsm-since-2010-edited.csv`     
+Bams look like `Ht20-73_2012_A10_R1.sort.flt.bam`
+```{r}
+sub<-read_csv("meta/dsm-since-2010-edited.csv") %>% mutate(Bam=paste0(filename,"_R1.sort.flt.bam")) %>% mutate(Bams=paste0("bams/",filename,"_R1.sort.flt.bam"))
+```
+
+
+### Read Counts
+`ls | grep sort.flt.bam | grep -v bai | while read line; do samtools flagstat $line | grep mapped | head -n 1 >> counts.txt; done;`
+`ls | grep sort.flt.bam | grep -v bai >> counts.files.txt`
+```{r}
+files<-read_tsv("outputs/101/counts.files.txt", col_names="Bam")
+counts<-read_tsv("outputs/101/counts.txt", col_names="Counts")
+counts$Counts<-gsub(" + 0 mapped (100.00% : N/A)", "", counts$Counts, fixed = TRUE)
+comb<-bind_cols(files, counts)
+comb$Counts<-as.numeric(comb$Counts)
+```
+
+```{r}
+df<-left_join(sub, comb)
+
+ggplot(df) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~`Birth year`)
+```
+
+```{r}
+tops<-df %>% top_frac(.9, Counts)
+
+ggplot(tops) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~`Birth year`)
+
+```
+
+```{r}
+mean(df$Counts)
+mean(tops$Counts)
+bams<-tops %>% select(Bams)
+write_tsv(bams, "bamlists/2011-2014-top90.bamlist", col_names = FALSE)
+```
+
+What about the extreme read counts?
+
+Next, let's compute a PCA and look for outliers (hint, Wakasagi). Then let's filter out those and low-coverage individuals and recompute.      
+
+###PCA
+691 individuals in tops.     
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/dsm-genotyping/bamlists/2011-2014-top90.bamlist \
+-minInd 622 -GL 1 -out $HOME/dsm-genotyping/outputs/101/pca \
+-doGlf 2  -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 20 -minQ 20 > outputs/101/pca.out 2> outputs/101/pca.err &
+
+#Generate Covariance Matrix
+python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/1200/pca.beagle.gz -admix -o $HOME/ds-lh/outputs/1200/pca
+```
