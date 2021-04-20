@@ -25,7 +25,7 @@ Now we should within /data/ align these fastqs.
 
 Now to check back in a bit and see how they turned out.      
 72 samples are missing. They are of the form Ht18-1_2011_A01_R1.fastq instead of Ht18-01_2011_A01_R1.fastq      
-`grep "fail to open file"  temp.out  | cut -f 2 -d '`'  > part-two.txt`     
+`grep "fail to open file"  temp.out  | cut -f 2 -d '\`'  > part-two.txt`     
 `sed 's/..$//' part-two.txt  > part-two-clean.txt`    
 `cat part-two-clean.txt | while read line; do grep $line ../meta/2011-2014-reads.tsv >> part-two-seqs.txt; done;`    
 
@@ -92,5 +92,121 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -doGlf 2  -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 20 -minQ 20 > outputs/101/pca.out 2> outputs/101/pca.err &
 
 #Generate Covariance Matrix
-python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/1200/pca.beagle.gz -admix -o $HOME/ds-lh/outputs/1200/pca
+python $HOME/pcangsd/pcangsd.py -beagle $HOME/dsm-genotyping/outputs/101/pca.beagle.gz -admix -o $HOME/dsm-genotyping/outputs/101/pca
+```
+	-> Number of sites retained after filtering: 183256     
+
+Note: For future iterations let's focus on the larger bits of the assembly.   
+Getting locally then...   
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Some shameless copying from Eric A.
+#' @param samples character vector with the individuals IDs in the order in which
+#' they were passed in the bamlist to angsd.
+#' @param cov covariance matrix
+covar2pcs <- function(samples, cov) {
+  
+  
+  eig <- eigen(cov, symm = TRUE)
+  PC <- as.data.frame(eig$vectors) %>%
+    as_tibble() %>%
+    setNames(sprintf("PC-%02d", 1:ncol(.)))
+  
+  samtib <- tibble(sample = samples)
+  
+  list(
+    PCs = bind_cols(samtib, PC),
+    eigevalues = eig$values
+  )
+}
+```
+
+```{r}
+pca_meta<-tops
+cov<-read_delim("outputs/101/pca.cov", delim=" ", col_names=FALSE) %>% as.matrix()
+
+pca <- covar2pcs(pca_meta$filename, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., pca_meta, by = c("sample"="filename"))
+
+ggplot(pp_meta, aes(x = val_x, y = val_y, fill=`Library Name`), alpha=0.75) +
+  geom_point(pch = 21, size = 2) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+ggsave("outputs/101/6-6-pca-2011-2014.pdf", width=8, height=6)
+```
+
+Wayward fish on PC3
+```{r}
+pc1<-pp_meta %>% filter(PCx == "PC-01") %>% filter(PCy=="PC-01") 
+pc2<-pp_meta %>% filter(PCx == "PC-02") %>% filter(PCy=="PC-02")
+pc3<-pp_meta %>% filter(PCx == "PC-03") %>% filter(PCy=="PC-03")
+
+head(arrange(pc1, -val_x))
+head(arrange(pc2, -val_x))
+head(arrange(pc3, val_x))
+
+```
+
+Previously I noted:
+These two may be hybrids or wakasagi:
+2013-SKT-6261, Ht20-30_2012_F04
+2013-SKT-6255, Ht20-77_2012_E10
+
+These two are funny, probably some sort of DNA quality issue.
+2013-SKT-6396, Ht19-21_2012_E03 
+2013-SKT-6374, Ht19-20_2012_D03
+
+```{r}
+df2<-pp_meta %>% filter(sample %in% c("Ht20-30_2012_F04",
+                                 "Ht20-77_2012_E10",
+                                 "Ht19-21_2012_E03",
+                                 "Ht19-20_2012_D03")) %>%
+  mutate(Type="Trouble")
+
+temp<-pp_meta %>% mutate(Type="Whatevs")
+temp<-bind_rows(temp, df2)
+ggplot(temp, aes(x = val_x, y = val_y, fill=Type), alpha=0.75) +
+  geom_point(pch = 21, size = 2) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+```
+
+
+I'll drop all four samples.
+
+```{r}
+tops2<-tops %>% filter(!(filename %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10","Ht19-21_2012_E03","Ht19-20_2012_D03")))
+write_tsv(tops2 %>% select(Bams), "bamlists/samples.bamlist", col_names = FALSE)
+write_csv(tops2, "meta/samples.csv")
+```
+
+Now we have 687 samples to work with. Making a plink file:     
+First, getting large contigs: `awk '$2 > 500000' Hyp_tra_F_20210204.fa.fai  | cut -f 1 > large-contigs.txt`      
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=4 $HOME/angsd/angsd -P 24 -b $HOME/dsm-genotyping -minInd 653 \
+  -out $HOME/dsm-genotyping/outputs/101/doPlink-samples \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 \
+  -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa \
+  -rf  $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+  -SNP_pval 1e-6 -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2
 ```
