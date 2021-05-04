@@ -1,0 +1,44 @@
+---
+title: "300-parentage"
+author: "Mac Campbell"
+date: "5/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## Parentage
+Lew et al. 2015 has some SNPs. 
+`(base) Macs-MacBook-Pro-2:300 mac$ cat lew-et-al-seqs.fasta| perl -pe 's/\[//g' | perl -pe 's/\/\w\]//g' > lew.fasta`
+
+Now to blast against the DSM genome.     
+`blastn -query lew.fasta -evalue .001 -db ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -outfmt 6 > blast.out`    
+
+These look great!!!    
+Htr-GVL-A002185 lg01    100.000 138     0       0       1       138     10040190        10040327        4.39e-67        255        
+Htr-GVL-A000163 lg02    100.000 138     0       0       1       138     11995053        11994916        4.39e-67        255        
+Htr-GVL-A000314 lg03    100.000 138     0       0       1       138     4916411 4916548 4.39e-67        255        
+Htr-GVL-A000225 lg04    100.000 138     0       0       1       138     5353012 5352875 4.39e-67        255        
+Htr-GVL-A002099 lg05    99.275  138     1       0       1       138     5380318 5380181 2.04e-65        250        
+Htr-GVL-A000492 lg06    99.275  138     1       0       1       138     11726616        11726753        2.04e-65        250        
+Htr-GVL-A000612 lg09    100.000 138     0       0       1       138     9907223 9907086 4.39e-67        255        
+Htr-GVL-A001701 lg11    100.000 138     0       0       1       138     4134056 4134193 4.39e-67        255        
+Htr-GVL-A000505 lg12    100.000 138     0       0       1       138     6611724 6611587 4.39e-67        255        
+Htr-GVL-A002206 lg13    100.000 138     0       0       1       138     5302157 5302294 4.39e-67        255        
+Htr-GVL-A001430 lg14    100.000 138     0       0       1       138     16464411        16464274        4.39e-67        255        
+Htr-GVL-A001499 lg15    98.551  138     2       0       1       138     2271636 2271499 9.51e-64        244        
+Htr-GVL-A000714 lg17    99.275  138     1       0       1       138     1892822 1892959 2.04e-65        250        
+Htr-GVL-A001852 lg18    99.275  138     1       0       1       138     6597240 6597103 2.04e-65        250        
+Htr-GVL-A000500 lg19    99.275  138     1       0       1       138     6907154 6907291 2.04e-65        250        
+Htr-GVL-A000078 lg20    100.000 138     0       0       1       138     3143798 3143661 4.39e-67        255        
+Htr-GVL-A002161 lg21    100.000 138     0       0       1       138     6308702 6308565 4.39e-67        255        
+Htr-GVL-A000651 lg22    100.000 138     0       0       1       138     3326448 3326585 4.39e-67        255        
+Htr-GVL-A001702 lg23    99.275  138     1       0       1       138     1607135 1607272 2.04e-65        250        
+Htr-GVL-A002071 lg24    99.275  138     1       0       1       138     3903943 3903806 2.04e-65        250        
+Htr-GVL-A000850 lg26    99.275  138     1       0       1       138     2158667 2158804 2.04e-65        250        
+      
+These are great, but they aren't being used at the moment. I need to find the 74 actual snps.
+
+

@@ -15,7 +15,44 @@ I feel like using bcftools today. Previously I did it like this:
 srun -p med -t 16:00:00 --nodes=1 bcftools mpileup --min-MQ 20 --min-BQ 20 -Ou \
 --fasta-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa \
 -b $HOME/dsm-genotyping/bamlists/2011-2014-top90.bamlist | \
-bcftools call -mv -Ov -o outputs/101/top90.vcf > outputs/101/call.out 2> outputs/101/call.err &
+bcftools call -mv -Ov -o outputs/102/top90.vcf > outputs/102/call.out 2> outputs/102/call.err &
 ```
 
+Then a couple steps to normalize:
+```{sh,e val=FALSE}
+#bgzip and bcftools index files
+bgzip outputs/102/top90.vcf
+bcftools index outputs/102/top90.vcf.gz
+
+#then
+srun -p med -t 8:00:00 --nodes=1 bcftools norm -c w outputs/101/top90.vcf.gz  \
+-f $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -Ov -o outputs/102/top90-norm.vcf 
+
+```
+
+Now to filter a bit:
+```{sh, eval=FALSE}
+vcftools --vcf outputs/102/top90-norm.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.1 --maf 0.1 --max-maf 0.4 \
+--out outputs/102/top90-filtered --recode 
+```
+
+This should:     
+__1__ remove indels    
+__2__ get biallelic variants
+__3__ have a missing data threshold    
+__4__ bound MAF between 0.1 and 0.4    
+
+Then a test for HW equilibrium?   Can be done with VCF tools.     
+
+--hwe <float>     
+ 
+Assesses sites for Hardy-Weinberg Equilibrium using an exact test, as defined by Wigginton, Cutler and Abecasis (2005). Sites with a p-value below the threshold defined by this option are taken to be out of HWE, and therefore excluded.   
+
+(https://pubmed.ncbi.nlm.nih.gov/15789306/)     
+
+
+I want the MAF, should be able to include as a tag like so:   
+```{sh, eval=FALSE}
+bcftools +fill-tags test.vcf  -- -t AF
+```
 
