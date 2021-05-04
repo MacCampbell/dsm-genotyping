@@ -39,6 +39,36 @@ Htr-GVL-A001702 lg23    99.275  138     1       0       1       138     1607135 
 Htr-GVL-A002071 lg24    99.275  138     1       0       1       138     3903943 3903806 2.04e-65        250        
 Htr-GVL-A000850 lg26    99.275  138     1       0       1       138     2158667 2158804 2.04e-65        250        
       
-These are great, but they aren't being used at the moment. I need to find the 74 actual snps.
+These are great, but they aren't being used at the moment. I need to find the 74 actual snps being used now..
+
+Turns out these are all the SNPs from lew et al:
+`(base) Macs-MBP-2:300 mac$ cut -f 4,5,10 -d ',' lew\ assay.csv | perl -pe 's/^H/\>H/g' | perl -pe 's/(\d),([A|G|C|T])/$1\n$2/g' > lew-all-seqs.fasta`     
+`(base) Macs-MBP-2:300 mac$ grep ">" lew-all-seqs.fasta | wc -l`     
+      75     
+      
+Checking against genome....
+`cat lew-all-seqs.fasta | perl -pe 's/\[//g' | perl -pe 's/\/\w\]//g' >lew-all-seqs-seq-only.fasta`    
+`blastn -query lew-all-seqs-seq-only.fasta -evalue .001 -db ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -outfmt 6 > blast.out`
+
+For the most part these look good, a few are absent from the assembly.   
+
+query target %id alignment-length diffs gaps query-start query-end target-start target-end e-value bitscore      
+Htr-GVL-A001607,Htr-GVL-059 lg10 99.275 138 1 0 1 138 6705721 6705584 2.04e-65 250      
+
+Htr-GVL-A001607,Htr-GVL-059 lg26 97.080 137 4 0 2 138 2779390 2779254 7.40e-60 231      
+
+Htr-GVL-A001607,Htr-GVL-059 scaffold_62 94.074 135 7 1 135 959253 959119 1.61e-51 204      
+
+This appears to be an orf:    
+>lcl|ORF1    
+MTQFHLINQRSLEDIIQHLKTSSCR    
+
+Hard to align to proteins or tblastx against refseq rna for a clear match, matches mostly unknown/hypothesized proteins.      
+
+It is not in the dfam database, btws....    
+
+
+
+
 
 
