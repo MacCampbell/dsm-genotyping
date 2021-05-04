@@ -1,0 +1,21 @@
+---
+title: "102-dsm-genos"
+author: "Mac Campbell"
+date: "5/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## Generate variants
+I feel like using bcftools today. Previously I did it like this:     
+```{sh, eval=FALSE}
+srun -p med -t 16:00:00 --nodes=1 bcftools mpileup --min-MQ 20 --min-BQ 20 -Ou \
+--fasta-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa \
+-b $HOME/dsm-genotyping/bamlists/2011-2014-top90.bamlist | \
+bcftools call -mv -Ov -o outputs/101/top90.vcf > outputs/101/call.out 2> outputs/101/call.err &
+```
+
+
