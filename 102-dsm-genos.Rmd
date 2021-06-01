@@ -9,8 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 ```
 
+```{r}
+library(tidyverse)
+```
 ## Generate variants
-I feel like using bcftools today. Previously I did it like this:     
+A bcftools approach. Previously I did it like this:     
 ```{sh, eval=FALSE}
 srun -p med -t 16:00:00 --nodes=1 bcftools mpileup --min-MQ 20 --min-BQ 20 -Ou \
 --fasta-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa \
@@ -25,24 +28,56 @@ bgzip outputs/102/top90.vcf
 bcftools index outputs/102/top90.vcf.gz
 
 #then
-srun -p med -t 8:00:00 --nodes=1 bcftools norm -c w outputs/101/top90.vcf.gz  \
+srun -p med -t 8:00:00 --nodes=1 bcftools norm -c w outputs/102/top90.vcf.gz  \
 -f $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -Ov -o outputs/102/top90-norm.vcf 
 
 ```
 
-Now to filter a bit:
+
+Note:   [E::vcf_parse_format] Number of columns at lg11:16917285 does not match the number of samples (678 vs 691), this error causes downstream analyses to loose data past chrom11 (expect lg01-lg025).
+
+Lines   total/split/realigned/skipped:  254214/0/25723/0         
+Arghh, doing it again but NOT using the med nodes.     
+
 ```{sh, eval=FALSE}
-vcftools --vcf outputs/102/top90-norm.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.1 --maf 0.1 --max-maf 0.4 \
---out outputs/102/top90-filtered --recode 
+srun -p high -t 16:00:00 --nodes=1 bcftools mpileup --min-MQ 20 --min-BQ 20 -Ou \
+--fasta-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa \
+-b $HOME/dsm-genotyping/bamlists/2011-2014-top90.bamlist | \
+bcftools call -mv -Ov -o outputs/102/top90-high.vcf > outputs/102/call-high.out 2> outputs/102/call-high.err &
+```
+Again a couple steps to normalize:
+```{sh,e val=FALSE}
+#bgzip and bcftools index files
+bgzip outputs/102/top90-high.vcf
+bcftools index outputs/102/top90-high.vcf.gz
+
+#then
+srun -p med -t 8:00:00 --nodes=1 bcftools norm -c w outputs/102/top90-high.vcf.gz  \
+-f $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -Ov -o outputs/102/top90-high-norm.vcf 
+
 ```
 
-This should:     
+Meanwhile      
+
+```{sh, eval=FALSE}
+cat top90.vcf | grep -v "16917285" > top90.drop.vcf
+bgzip outputs/102/top90.drop.vcf
+bcftools index outputs/102/top90.drop.vcf.gz
+
+srun -p high -t 8:00:00 --nodes=1 bcftools norm -c w outputs/102/top90.drop.vcf.gz  \
+-f $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -Ov -o outputs/102/top90-norm.drop.vcf 
+```
+
+drop:    Lines   total/split/realigned/skipped:	549011/0/55694/0
+
+
+Now, to filter, this should:     
 __1__ remove indels    
 __2__ get biallelic variants
 __3__ have a missing data threshold    
 __4__ bound MAF between 0.1 and 0.4    
-
-Then a test for HW equilibrium?   Can be done with VCF tools.     
+__5__ use chroms and large contigs       
+__6__ apply HWE filter
 
 --hwe <float>     
  
@@ -51,8 +86,70 @@ Assesses sites for Hardy-Weinberg Equilibrium using an exact test, as defined by
 (https://pubmed.ncbi.nlm.nih.gov/15789306/)     
 
 
-I want the MAF, should be able to include as a tag like so:   
 ```{sh, eval=FALSE}
-bcftools +fill-tags test.vcf  -- -t AF
+vcftools --vcf outputs/102/top90-norm.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.1 --maf 0.1 --max-maf 0.4 --hwe 0.05 \
+ --out outputs/102/top90-norm-filtered --recode 
+ 
+ vcftools --vcf outputs/102/top90-norm.drop.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.1 --maf 0.1 --max-maf 0.4 --hwe 0.05 \
+ --out outputs/102/top90-norm-filtered-drop --recode 
 ```
 
+drop: kept 7929 out of a possible 549011 Sites
+Running locally.....
+
+```{sh, eval=FALSE}
+bcftools +fill-tags outputs/102/top90-norm-filtered.recode.vcf -- -t MAF > outputs/102/top90-norm-filtered.recode.MAF.vcf
+cat outputs/102/top90-norm-filtered.recode.MAF.vcf | cut -f 1,2,4,5,8 | grep -v "#" > outputs/102/top90-filtered.recode.MAF.txt
+```
+
+
+Visualize MAF distribution:
+```{r}
+contigs<-read_tsv("outputs/102/large-contigs.txt",col_names = c("Chromosome"))
+
+mafs<-read_tsv("outputs/102/top90-filtered.recode.MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+  separate(MAF, into=c("Type","Frequency"), sep="=")
+mafs$Frequency<-as.numeric(mafs$Frequency)
+min(mafs$Frequency)
+max(mafs$Frequency)
+mean(mafs$Frequency)
+```
+
+Bounded by a MAF of 0.1 to 0.4, and that's what I wanted.
+
+```{r}
+ggplot(mafs) +
+  geom_histogram(aes(x=Frequency)) +
+  ylab("Count\n") +
+  xlab("\nMinor Allele Frequency") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  ggtitle("Histogram of Minor Allele Frequency\n") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Reduce to large contigs
+```{r}
+mafs2<-mafs %>% filter(Chromosome %in% contigs$Chromosome)
+ggplot(mafs2) +
+  geom_histogram(aes(x=Frequency)) +
+  ylab("Count\n") +
+  xlab("\nMinor Allele Frequency") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  ggtitle("Histogram of Minor Allele Frequency\n") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Pruning for fun.
+
+```{sh, eval=FALSE}
+bcftools +prune -l 0.25 -w 10000 outputs/102/top90-filtered.recode.AF.vcf -Ov -o  outputs/102/top90-filtered.recode.AF.pruned.vcf
+
+bcftools stats  outputs/102/top90-filtered.recode.AF.pruned.vcf
+```
+
+2104
+
+Thinking about computing r2/D, but not bothering.

@@ -1,0 +1,25 @@
+---
+title: "400-synthesis"
+author: "Mac Campbell"
+date: "June 1, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
+```
+
+##Summary of DSM variants
+
+We have a few data sources:    
+
+__1__ Genotype calls from RADseq (102-dsm-genos.html)     
+__2__ Benjamin et al. hybridization assay SNPS (200-hybrids.html)     
+__3__ Lew et al. parentage SNPs (300-parentage.html)     
+__4__ Sex marker, status ????      
+
+
+More of a 1b, I'm also throwing in a few Mac Campbell selects of life-history association.
+
+
+### 1 Genotype Calls from RADseq

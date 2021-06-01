@@ -9,6 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 ```
 
+```{r}
+library(tidyverse)
+```
+
 ## Parentage
 Lew et al. 2015 has some SNPs. 
 `(base) Macs-MacBook-Pro-2:300 mac$ cat lew-et-al-seqs.fasta| perl -pe 's/\[//g' | perl -pe 's/\/\w\]//g' > lew.fasta`
@@ -52,6 +56,7 @@ Checking against genome....
 
 For the most part these look good, a few are absent from the assembly.   
 
+Here is one that shows duplications:       
 query target %id alignment-length diffs gaps query-start query-end target-start target-end e-value bitscore      
 Htr-GVL-A001607,Htr-GVL-059 lg10 99.275 138 1 0 1 138 6705721 6705584 2.04e-65 250      
 
@@ -67,6 +72,16 @@ Hard to align to proteins or tblastx against refseq rna for a clear match, match
 
 It is not in the dfam database, btws....    
 
+
+## Coordinate spaces of these SNPS
+Want to check out how these relate to our genotype calls.
+
+```{r}
+blast<-read_tsv("outputs/300/blast.out", col_names = c("query", "target", "%id", "alignment-length", "diffs", "gaps", "query-start",
+                                                      "query-end", "target-start", "target-end", "e-value", "bitscore"))
+```
+
+Again, we only have 68 placed SNPs, and of those, one is a duplicate.
 
 
 

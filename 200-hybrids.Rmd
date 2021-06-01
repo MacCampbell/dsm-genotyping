@@ -9,6 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message = FALSE)
 ```
 
+```{r}
+library(tidyverse)
+```
+
 ## Other species
 Finding some markers for osmerids. From Benjamin et al. I obtained the rad contigs for the assay.
 
@@ -96,7 +100,7 @@ A few hits are nearly the same size..... Probably should chuck it.
 LFS_03	scaffold_60	90.858	711	41	8	4	691	198366	197657	0.0	931    
 LFS_03	scaffold_60	90.858	711	41	8	4	691	20730	20021	0.0	931    
 LFS_03	scaffold_60	90.858	711	41	8	4	691	242178	241469	0.0	931       
-LFS_03	scaffold_60	90.858	711	41	8	4	691	273039	272330	0.0	931
+LFS_03	scaffold_60	90.858	711	41	8	4	691	273039	272330	0.0	931     
 LFS_03	scaffold_60	90.858	711	41	8	4	691	71238	70529	0.0	931   
 LFS_03	scaffold_60	90.858	711	41	8	4	691	80003	79294	0.0	931   
 LFS_03	scaffold_60	90.858	711	41	8	4	691	88737	88028	0.0	931   
@@ -115,7 +119,7 @@ DSM_03	lg02	91.449	573	27	7	22	593	11822070	11822621	0.0	767
 DSM_04	lg10	90.188	744	33	7	1	712	9034650	9033915	0.0	933     
 DSM_05	lg16	94.626	521	18	7	1	515	6424833	6424317	0.0	798     
 DSM_06	lg24	90.528	549	26	5	1	544	3275491	3274964	0.0	702    
-DSM_07	scaffold_107	88.608	316	26	7	1	315	698034	697728	9.70e-103	375     
+DSM_07	scaffold_107	88.608	316	26	7	1	315	698034	697728	9.70e-103	375      
 DSM_08	lg22	95.804	572	16	4	1	572	7369559	7368996	0.0	917      
 DSM_09	lg01	97.114	693	16	1	1	689	7927198	7927890	0.0	1166    
 DSM_10	lg07	91.682	529	24	8	1	524	3392415	3391902	0.0	715     
@@ -135,11 +139,42 @@ LFS_07	lg04	96.835	316	10	0	1	316	3989846	3989531	6.00e-149	529
  
 
 
+##Overlap with called SNPS.
+Putting together lengths of queries for for filtering:
+```{sh, eval=FALSE}
+cat seqs.fasta | awk '$0 ~ ">" {if (NR > 1) {print c;} c=0;printf substr($0,2,100) "\t"; } $0 !~ ">" {c+=length($0);} END { print c; }' > seq-lens.tsv
+```
+
+```{r}
+lens<-read_tsv("outputs/200/seq-lens.tsv", col_names = FALSE) %>% separate(X1, sep=" ", into=c("query","RADcontig","geno1","geno2","geno3")) %>%
+            select(query,X2) %>% rename(Length=X2)
+```
 
 
+```{r}
+df<-read_tsv("outputs/200/blast.out", col_names = c("query", "target", "%id", "alignment-length", "diffs", "gaps", "query-start",
+                                                      "query-end", "target-start", "target-end", "e-value", "bitscore")) %>%
+  left_join(lens)
+df %>% group_by(query, Length) %>% summarize(Count=n()) %>% arrange(-Count)
+```
+
+ Ehhhwww.....
  
+ Drop out short hits, must be > 0.9 length of query       
+ 
+```{r}
+df %>% filter(`alignment-length`> 0.9*Length) %>% group_by(query) %>% summarize(Count=n()) %>% arrange(-Count)
+```
+Also eehhww... 
+Let's be cautious about the specificity of LFS_01, LFS_03, LFS_04, and get some .5*query alignments
 
+```{r}
+ddf <- df %>% filter(`alignment-length`> .5*Length) %>% filter(!query %in% c("LFS_01","LFS_03","LFS_04"))
 
+ddf %>% group_by(query) %>% summarize(Count=n()) %>% arrange(-Count)
+```
+
+How do these ddf snps relate to our genotype calls.
 
 
 
