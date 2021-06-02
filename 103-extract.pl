@@ -4,7 +4,6 @@
 #By Mac Campbell, DrMacCampbell@gmail.com
 
 #A simple script to extract sites from a fasta file.
-#At the moment reading to memory.
 
 #We want a tab-delimited input (sites.txt)
 #Chrom  Site    Major   Minor MAF

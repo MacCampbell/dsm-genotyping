@@ -3,8 +3,7 @@
 #06022021
 #By Mac Campbell, DrMacCampbell@gmail.com
 
-#A simple script to extract sites from a fasta file.
-#At the moment reading to memory.
+#A simple script to extract sites from a fasta file. This one doesn't print Major/Minor so that we can blast against the DSM genome and get an idea of highly repetitive things.
 
 #We want a tab-delimited input (sites.txt)
 #Chrom  Site    Major   Minor MAF
@@ -13,9 +12,8 @@
 
 
 #Usage
-# ./extractFlanksandRecode.pl file.fasta sites.txt
+# ./extractFlanksandRecode.pl sites.txt
 
-my $fasta=shift;
 my $sites=shift;
 
 #Set variables
@@ -25,19 +23,10 @@ my $sep ="\t";
 my $buffer=150;
 
 
-#Read in fasta and store to memory, sigh. It seems that I should make a hash.
+#Reading in fasta and store to memory, takes a lot. It seems that I should make a hash.
 
-my %hash;
 
-my @dat = ReadInFASTA($fasta);
 my @sites = GetData($sites);
-
-
-foreach $entry (@dat) {
-
-	my @a = split($sep, $entry);
-	$hash{$a[0]}=$a[1];	
-}
 
 
 foreach my $site (@sites) {
@@ -49,18 +38,25 @@ foreach my $site (@sites) {
 	my $minor=$b[3];
 	my $maf=$b[4];
 
-my @sequence=split(//,$hash{$chrom});
+#Use faidx to make the range of sites we want
+$start= $site-$buffer;
+$end = $site+$buffer;
+`samtools faidx /home/maccamp/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa $chrom:$start-$end	> temp.fasta`;
+
+my $fasta = "temp.fasta";
+
+#Should only have one sequence
+my @dat = ReadInFASTA($fasta);
+my @a = split($sep, $dat[0]);
+my @sequence = split(//, $a[1]);
 
 print ">".$chrom."-site-".$site."-Major-".$major."-Minor-".$minor."-".$maf."\n";
-print @sequence[($site-1-$buffer)..($site-1-1)];
-#print $sequence[$site-1]; Replacing site-1 with major/minor
-print "[$major/$minor]";
-print @sequence[$site..$site-1+$buffer];
+print @sequence;
 print "\n";
 
 }
 
-
+`rm temp.fasta`;
 
 
 exit;
@@ -79,6 +75,7 @@ while (<INFILE>) {
 return(@result);
 
 }
+
 
 sub ReadInFASTA {
     my $infile = shift;

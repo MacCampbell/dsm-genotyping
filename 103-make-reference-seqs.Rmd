@@ -56,3 +56,28 @@ srun -p high -t 1:00:00 --nodes=1  extractFlanksandRecode.pl $HOME/genomes/hypom
 
 Takes forever.   I wonder if I can do this chrom by chrom by using samtools faidx in the script to avoid loading to memory.
 
+```{sh, eval=FALSE}
+./103-extract.pl meta/test.singletons.txt
+```
+
+Removing [M/m] and blasting
+`lg01-site-3438302-Major-G-Minor-T-MAF=0.138462
+TCCTCCTCTCTTCCTCTCCTCCCTTCCTCTCCTCCTCTCCTCCTCTCTTCCTCTCCCCCTCTCCCGCTCTCTCCCTCTCCTCCTCCCTTCCTCTCCTCCTCTCCTCGTCGGCCAGGTGCCACAGGTGTGGAGGACCGTCTGCAGGAGAGCGCCCCTGACACCATCGCTGCTCTCCGAGAGGCGGGGATCCAGGTGTGGGTGCTTACAGGCGACAAGGCCGAGACGGCCGTCAACATCGCATACGCCTGCAGGCTGCTGGATGATGGGGACCTGGTGTTCAACATGAGAACCAGCAGCAAGG
+lg01-site-3545233-Major-G-Minor-T-MAF=0.113678
+TATCCCTGCAGGGTGGATCCCCTCCCTGTGAGATAACACTGGAGGGATTCAGAAGTGTGTGTGTGGCTGTGTGTGTGTGTGTGTAAATATATCTCAGCGGAGAGGGAAGGCAGCGCTGAGACAGAAGTTCTAGAAAGTACAACTGAAGCTGCCATTAATGTGTGTGACTGAGATGAACAGGTCTCTCTCTCTCTCACTCACACTCACACTCACACACAAACCCACCTTCACACTTCACACACATACAGGGTAGTGTAGGTAGGTATGGTTGTGTACTGTTGTGGTGTTCCATACAAGTTTG`
+
+`(base) maccamp\@farm:~/genomes/hypomesus-20210204$ blastn -query test.fasta -db lg01.fasta -outfmt 6 | sort -k 3 -n
+lg01-site-3438302-Major-G-Minor-T-MAF=0.138462	lg01	100.000	301	0	0	1	301	3438152	3438452	7.60e-159	556
+lg01-site-3545233-Major-G-Minor-T-MAF=0.113678	lg01	100.000	301	0	0	1	301	3545083	3545383	7.60e-159	556
+`
+Looks ok.
+
+```{sh, eval=FALSE}
+srun -p high -t 1:00:00 --nodes=1 ./103-extract.pl meta/snps-75-samples-recode-filtered.MAF.singletons.txt  > outputs/103/snps-75-samples-recode-filtered.fasta
+```
+
+~/dsm-genotyping/outputs/103$ grep ">" snps-75-samples-recode-filtered.fasta | wc -l      
+1212
+
+Produces 1212 seqs as expected. I also think we should do soemthing about high copy number seqs by blasting against the genome.
+
