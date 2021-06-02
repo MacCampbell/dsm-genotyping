@@ -9,17 +9,123 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
 ```
 
+```{r}
+library(tidyverse)
+library(RColorBrewer)
+```
+
 ##Summary of DSM variants
 
 We have a few data sources:    
 
-__1__ Genotype calls from RADseq (102-dsm-genos.html)     
+__1__ Genotype calls from RADseq (101-dsm-qc.html)     
 __2__ Benjamin et al. hybridization assay SNPS (200-hybrids.html)     
 __3__ Lew et al. parentage SNPs (300-parentage.html)     
 __4__ Sex marker, status ????      
-
-
-More of a 1b, I'm also throwing in a few Mac Campbell selects of life-history association.
+__5__ More of a 1b, I'm also throwing in a few Mac Campbell selects of life-history association
 
 
 ### 1 Genotype Calls from RADseq
+
+### 2 Benjamin et al. hybridization assay SNPs
+There is the potential for amplification of highly-repetitive sequences, and I doubt that this is ideal for GTSeq. The three SNPs that seemed likely to have a problem are Longfin Smelt diagnostic (LFS_01, LFS_03, LFS_04). Twenty additional sites may be workable.
+
+```{r}
+hybrid<-read_tsv("outputs/400/hybridization-snps-blastn.tsv") %>% mutate(ProportionAligned = `alignment-length`/Length) %>%
+                                                                  filter(ProportionAligned > 0.9) %>%
+                                                                  select(query, target, `%id`)
+#ProportionAligned may be > 1 because gaps are permitted
+hybrid
+```
+There are a couple species diagnostic SNPs for each species to consider.     
+
+It looks there are SNPS near the diagnostic WKS_04 and WKS_07 and these should not be used. Overall, the SNPs called are not found near diagnostic SNPs.
+
+### 3 Lew et al. parentage SNPs
+65 of these are placed on the genome, but,  Htr-GVL-A001607,Htr-GVL-059 exhibits duplication with some sort of duplicated ORF (3x alignments), for the most part the parentage snps align 1:1 and for the whole query sequence against the DSM genome assembly. Htr-GVL-A000366,Htr-GVL-029 does have two alignments, but one is short and of lower %id.  See parentage-snps-blastn.tsv.  
+
+The parentage SNPS relate to our genotype calls....
+
+### 4 Sex Marker?
+
+
+### 5 DSM Life History Association
+
+Comparing Freshwater Resident (FWR) to Migratory (MIG) does show a couple SNPs of high association. From a dataset of fish born in 2012 with 61 FWR and 62 MIG individuals a few sites are indicated. Here are a couple ways to look at association testing results. A Bonferroni correction is used for a high-stringency result, I also calculate a less strict significance ratio using an odds ratio.
+```{r, echo=FALSE}
+dddf<-read_tsv(file="outputs/400/assoc05-75.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni"))
+
+##Calculating odds ratio
+variants<-nrow(dddf)
+#Number of expected variants
+num<-50
+p.T = num/variants 
+prior.odds = p.T/(1-p.T) 
+pwr = 1 #upper bound for power --> upper bound for alpha 
+post.odds = 0.95/(1-0.95) 
+alpha = prior.odds*pwr/post.odds 
+paste(signif(alpha,3)) 
+-log10(alpha)
+
+arrange(dddf, -log10p) %>% filter(log10p > -log10(alpha)) 
+```
+
+
+I think we should include these three:     
+lg02  11230464       
+lg01  2467271      
+lg17  14078225     
+
+A visual example
+```{r, echo=FALSE}
+data<-dddf # %>% filter(Chromosome %in% c("lg01","lg02"))
+dd <- data %>% ungroup %>% mutate(Index=1:n())
+dd$Chromosome<-as.factor(dd$Chromosome)
+
+chroms<-dd %>% group_by(Chromosome) %>% mutate(Start=min(Index), Stop=max(Index)) %>% 
+  select(Chromosome,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+outliers <- dd %>% filter(log10p >= -log10(alpha))
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+#randomize
+mycolors<-sample(mycolors)
+
+ggplot(dd) +
+  geom_point(data=dd, aes(x=Index, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers, aes(x=Index, y=log10p, fill=Chromosome), pch=21, cex=2, alpha=0.9) +
+  geom_hline(yintercept = -log10(0.05/nrow(df)), col="black", linetype=2, alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=1, alpha=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  scale_fill_manual(breaks=unique(dd$Chromosome), values=mycolors) +
+  ylab("-log10(p)") +
+  xlab("Chromosome") +
+  ggtitle("FWR vs MIG Comparison") +
+  theme(plot.title = element_text(hjust=0.5) )
+```
+
+Are these found in our SNPS?    
+```{r}
+mafs2<-read_tsv("outputs/300/samples-90-nothwemaf.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+  separate(MAF, into=c("Type","Frequency"), sep="=")
+
+dslh<-arrange(dddf, -log10p) %>% filter(log10p > -log10(alpha)) 
+
+dslh %>% left_join(mafs2, by=c("Chromosome"="Chromosome")) %>% filter(Position.x == Position.y)
+```
+None found?
+
+
+ 
+

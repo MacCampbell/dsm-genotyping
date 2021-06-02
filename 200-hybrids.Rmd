@@ -169,12 +169,37 @@ Also eehhww...
 Let's be cautious about the specificity of LFS_01, LFS_03, LFS_04, and get some .5*query alignments
 
 ```{r}
-ddf <- df %>% filter(`alignment-length`> .5*Length) %>% filter(!query %in% c("LFS_01","LFS_03","LFS_04"))
+ddf <- df %>% filter(`alignment-length`> .5*Length) %>% filter(!query %in% c("LFS_01","LFS_03","LFS_04")) %>%
+  mutate(Start=ifelse(`target-start` < `target-end`, `target-start`, `target-end`)) %>%
+          mutate(End=ifelse(`target-start` < `target-end`, `target-end`, `target-start`)) %>%
+          mutate(orient=End-Start)
 
 ddf %>% group_by(query) %>% summarize(Count=n()) %>% arrange(-Count)
+
+write_tsv(ddf, "outputs/400/hybridization-snps-blastn.tsv")
+
 ```
 
-How do these ddf snps relate to our genotype calls.
+How do these ddf snps relate to our SNPs of interest.
 
+```{r}
 
+mafs<-read_tsv("outputs/101/doPlink-90-MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+  separate(MAF, into=c("Type","Frequency"), sep="=")
+
+dddf<-ddf %>% inner_join(mafs, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
+dddf %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
+write_tsv(dddf, "outputs/400/hybrid-matches.txt")
+```
+
+```{r}
+mafs2<-read_tsv("outputs/300/samples-90-nothwemaf.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+  separate(MAF, into=c("Type","Frequency"), sep="=")
+
+dddf2<-ddf %>% inner_join(mafs2, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
+dddf2 %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
+write_tsv(dddf2, "outputs/400/hybrid-matches-nomaf-nohwe.tsv")
+```
+
+This is great, as we don't want polymorphic sites.
 
