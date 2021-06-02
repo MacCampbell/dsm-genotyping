@@ -9,30 +9,56 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
 ```
 
-```{r}
+```{r, echo=FALSE}
 library(tidyverse)
 library(RColorBrewer)
 ```
+
+All analysis scripts are available at https://github.com/MacCampbell/dsm-genotyping. The basic series are 1xx for genotyping, 2xx for hybridization assays, 3xx for the parentage panel, and 4xx for combining the information. A /meta/ directory there contains various files associated with the samples or the papers that made the hybridization and parentage panels. In the compressed /400/ directory I am including files referenced in this .html and the sequences from Benjamin et al. and Lew et al. as .fastas.    
+
 
 ## Summary of DSM variants
 
 We have a few data sources:    
 
-__1__ Genotype calls from RADseq (101-dsm-qc.html)     
-__2__ Benjamin et al. hybridization assay SNPS (200-hybrids.html)     
-__3__ Lew et al. parentage SNPs (300-parentage.html)     
+__1__ Genotype calls from RADseq (101-dsm-qc)     
+__2__ Benjamin et al. hybridization assay SNPS (200-hybrids)     
+__3__ Lew et al. parentage SNPs (300-parentage)     
 __4__ More of a 1b, I'm also throwing in a few Mac Campbell selects of life-history association
 
 
 ### 1 Genotype Calls from RADseq
 
-Two types of MAFs - from a stricter and more relaxed filtering. The filtering applied was with vcftools to:     
-___1___ remove indels (non issue because using angsd here)    
-___2___ get biallelic variants (also should be a non issue)      
+Basic genotyping calling. The large amount of low-coverage individuals caused me to use a smaller dataset see 101-dsm-qc.  The meta for the samples is available at meta/samples75.csv. I checked with a PCA for funny stuff, and excluded samples (e.g. putative Wakasagis). The resulting 687 samples had genotype calls produced by ANGSD and BCFTOOLs. Here is the command used for the calls included in this document:      
+
+```{sh, eval=FALSE}
+srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 516 -nthreads 24 \
+-bam $HOME/dsm-genotyping/bamlists/top75.bamlist -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+-out $HOME/dsm-genotyping/outputs/101/snps-75  \
+-minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/101/snps-75.out 2> outputs/101/snps-75.err &
+```
+
+7702 snps with snps-75.tped       
+      
+The plink files were converted to vcf and filtered with vcf tools to:      
+___1___ remove indels (non-issue because using angsd here)    
+___2___ get biallelic variants (also should be a non-issue)      
 ___3___ have a missing data threshold (0.05)     
 ___4___ bound MAF between 0.1 and 0.4     
-___5___ apply HWE filter (p threshold of 0.05)     
+___5___ apply HWE filter (p threshold of 0.05)  
 
+```{sh, eval=FALSE}
+plink --tped outputs/101/snps-75.tped --tfam outputs/101/snps-75.tfam --out outputs/101/snps-75.binary --recode --allow-extra-chr --noweb
+plink --ped outputs/101/snps-75.binary.ped --map outputs/101/snps-75.binary.map --recode vcf --allow-extra-chr -out outputs/101/snps-75-samples-recode
+vcftools --vcf outputs/101/snps-75-samples-recode.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.05 --maf 0.1 --max-maf 0.4 --hwe 0.05 \
+ --out outputs/101/snps-75-samples-recode-filtered --recode 
+bcftools +fill-tags outputs/101/snps-75-samples-recode-filtered.recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/101/snps-75-samples-recode-filtered.MAF.txt
+bcftools +fill-tags outputs/101/snps-75-samples-recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/101/snps-75-samples-recode.MAF.txt
+```
+
+
+Two types of MAFs - from a stricter and more relaxed filtering. The filtering applied was with vcftools to:     
 `--remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.05 --maf 0.1 --max-maf 0.4 --hwe 0.05`       
 The light filtering using the outputs from angsd with minMaf 0.05           
 
@@ -67,8 +93,11 @@ ggplot(bind_rows(mafs,mafs2)) +
   facet_wrap(.~Type, ncol=1)
 ```
 
+_Sequence Files_      
+I generated fastas with 150 bp flanking data that are singleton SNPs, without another SNP within 1000bp (103-xxxx files). One file has the major/minor in the sequence coded as [M/m] (snps-75-samples-recode-filtered.fasta) and also a set where the reference sequence was printed (snps-75.fasta). Through self-blast, I identified several problematic loci that should not be part of the GTSeq panel due to being repetitive. The loci that are singleton SNPs and are not highly repetitive are in low-repeat-seqs.csv, there are 1165 of them.     
+
 ### 2 Benjamin et al. hybridization assay SNPs
-There is the potential for amplification of highly-repetitive sequences, and I doubt that this is ideal for GTSeq. The three SNPs that seemed likely to have a problem are Longfin Smelt diagnostic (LFS_01, LFS_03, LFS_04). Fifteen to twenty additional sites may be workable. Provided is the output from blastn of hybridization assay sequences "query" against the DSM genome assembly "target" as a *.tsv (hybridization-snps-blastn.tsv). It is summarized below with Start and End referring to where the query aligned on the genome.      
+There is the potential for amplification of highly-repetitive sequences, and I doubt that this is ideal for GTSeq. The three SNPs that seemed likely to have a problem are Longfin Smelt diagnostic (LFS_01, LFS_03, LFS_04). Fifteen to twenty additional sites may be workable. Provided is the output from blastn of hybridization assay sequences "query" against the DSM genome assembly "target" as a *.csv (hybridization-snps-blastn.csv). It is summarized below with Start and End referring to where the query aligned on the genome.      
 
 Duplicated seqs.    
 ```{r, echo=FALSE}

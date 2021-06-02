@@ -16,7 +16,7 @@ n flanks and then replace position with [Major/Minor].
 
 Wrote extractFlanksandRecode.pl, should work on outputs/101/snps-75-samples-recode-filtered.MAF.txt
 
-```{sh}
+```{sh, eval=FALSE}
 srun -p high -t 1:00:00 --nodes=1  extractFlanksandRecode.pl $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa outputs/101/snps-75-samples-recode-filtered.MAF.txt >> outputs/103/snps-75-samples-recode-filtered.fasta
 ```
 
@@ -81,3 +81,40 @@ srun -p high -t 1:00:00 --nodes=1 ./103-extract.pl meta/snps-75-samples-recode-f
 
 Produces 1212 seqs as expected. I also think we should do soemthing about high copy number seqs by blasting against the genome.
 
+That's 103-get-seqs.pl     
+```{sh, eval=FALSE}
+srun -p high -t 1:00:00 --nodes=1 ./103-get-seqs.pl meta/snps-75-samples-recode-filtered.MAF.singletons.txt  > outputs/103/snps-75.fasta
+```
+
+have 1212 seqs.
+
+```{sh}
+srun -p high -t 1:00:00 --nodes=1 blastn -query outputs/103/snps-75.fasta -db $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa  -outfmt 6 > outputs/103/blast.out
+```
+
+Are any of these highly repetitive?
+
+```{r}
+bl<-read_tsv("outputs/103/blast.out", col_names = c("query", "target", "%id", "alignment-length", "diffs", "gaps", "query-start",
+                                                      "query-end", "target-start", "target-end", "e-value", "bitscore")) %>%
+  mutate(Length=301)
+
+```
+
+```{r}
+bbl<-bl %>% group_by(query) %>% filter(`alignment-length` > .9*Length) %>% filter(`%id` > 95) %>%
+  summarize(Count=n()) %>%
+  arrange(-Count) 
+
+head(bbl)
+```
+
+Yikes!
+
+```{r}
+bbbl<-bbl %>% filter(Count < 2)
+nrow(bbbl)
+write_csv(bbbl, "outputs/400/low-repeat-seqs.csv")
+```
+
+Still have 1165 SNPs this way.
