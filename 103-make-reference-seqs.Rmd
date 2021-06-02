@@ -47,7 +47,7 @@ filt
 This gets us 1212 sites.
 
 ```{r}
-write_tsv(filt, "meta/snps-75-samples-recode-filtered.MAF.singletons.txt")
+write_tsv(filt, "meta/snps-75-samples-recode-filtered.MAF.singletons.txt", col_names = FALSE)
 ```
 
 ```{sh}
