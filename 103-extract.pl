@@ -46,7 +46,8 @@ foreach my $site (@sites) {
 	my $minor=$b[3];
 	my $maf=$b[4];
 
-`samtools faidx $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa	> temp.fasta`
+`samtools faidx $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa	> temp.fasta`;
+
 my $fasta = "temp.fasta";
 
 #Should only have one sequence
