@@ -22,7 +22,7 @@ my $sites=shift;
 my $sep ="\t";
 
 #Flanking length
-my $buffer=10;
+my $buffer=150;
 
 
 #Read in fasta and store to memory, sigh. It seems that I should make a hash.

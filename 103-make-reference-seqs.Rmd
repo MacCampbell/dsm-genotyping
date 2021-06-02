@@ -9,8 +9,43 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 ```
 
+
 ## I need to create seqs
 
 n flanks and then replace position with [Major/Minor].     
 
-Wrote extractFlanksandRecode.pl
+Wrote extractFlanksandRecode.pl, should work on outputs/101/snps-75-samples-recode-filtered.MAF.txt
+
+```{sh}
+srun -p high -t 1:00:00 --nodes=1  extractFlanksandRecode.pl $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa outputs/101/snps-75-samples-recode-filtered.MAF.txt >> outputs/103/snps-75-samples-recode-filtered.fasta
+```
+
+It generally works, but I need to get to singleton sites, that, is no nearby snps.
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+data<-read_tsv("outputs/101/snps-75-samples-recode-filtered.MAF.txt", col_names = c("Chrom","Site","Major","Minor","MAF")) %>%
+  group_by(Chrom)
+```
+
+```{r}
+data %>% mutate(Lag=Site-lag(Site)) %>% mutate(Lead=Site-lead(Site))
+```
+
+
+```{r}
+filt<-data %>% mutate(Lag=Site-lag(Site)) %>% mutate(Lead=abs(Site-lead(Site))) %>% 
+  filter(Lag > 1000) %>%
+  filter(Lead > 1000)
+
+filt
+```
+
+This gets us 1212 sites.
+
+```{r}
+write_tsv(filt, "meta/snps-75-samples-recode-filtered.MAF.singletons.txt")
+```
