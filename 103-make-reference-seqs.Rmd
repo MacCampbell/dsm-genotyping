@@ -49,3 +49,10 @@ This gets us 1212 sites.
 ```{r}
 write_tsv(filt, "meta/snps-75-samples-recode-filtered.MAF.singletons.txt")
 ```
+
+```{sh}
+srun -p high -t 1:00:00 --nodes=1  extractFlanksandRecode.pl $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa $HOME/dsm-genotyping/meta/snps-75-samples-recode-filtered.MAF.singletons.txt > outputs/103/snps-75-samples-recode-filtered.fasta
+```
+
+Takes forever.   I wonder if I can do this chrom by chrom by using samtools faidx in the script to avoid loading to memory.
+
