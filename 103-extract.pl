@@ -47,12 +47,12 @@ foreach my $site (@sites) {
 	my $maf=$b[4];
 
 `samtools faidx $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa	> temp.fasta`
-my $fasta = "temp.fasta"
+my $fasta = "temp.fasta";
 
 #Should only have one sequence
 my @dat = ReadInFASTA($fasta);
-my @a = split($sep, dat[0]);
-my @sequence = split(//, $a[1]
+my @a = split($sep, $dat[0]);
+my @sequence = split(//, $a[1]);
 
 print ">".$chrom."-site-".$site."-Major-".$major."-Minor-".$minor."-".$maf."\n";
 print @sequence[($site-1-$buffer)..($site-1-1)];
@@ -63,7 +63,7 @@ print "\n";
 
 }
 
-
+`rm temp.fasta`;
 
 
 exit;
