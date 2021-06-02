@@ -30,13 +30,6 @@ my $buffer=150;
 my @sites = GetData($sites);
 
 
-foreach $entry (@dat) {
-
-	my @a = split($sep, $entry);
-	$hash{$a[0]}=$a[1];	
-}
-
-
 foreach my $site (@sites) {
 	my @b = split("\t", $site);
 	
@@ -46,7 +39,7 @@ foreach my $site (@sites) {
 	my $minor=$b[3];
 	my $maf=$b[4];
 
-`samtools faidx $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa	> temp.fasta`;
+`samtools faidx /home/maccamp/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa	> temp.fasta`;
 
 my $fasta = "temp.fasta";
 
