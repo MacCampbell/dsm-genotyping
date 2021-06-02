@@ -42,7 +42,7 @@ foreach my $site (@sites) {
 #Use faidx to make the range of sites we want
 $start= $site-$buffer;
 $end = $site+$buffer;
-`samtools faidx /home/maccamp/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa $chrom:$start-end	> temp.fasta`;
+`samtools faidx /home/maccamp/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa $chrom:$start-$end	> temp.fasta`;
 
 my $fasta = "temp.fasta";
 
