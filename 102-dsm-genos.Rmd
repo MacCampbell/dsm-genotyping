@@ -45,17 +45,20 @@ srun -p high -t 16:00:00 --nodes=1 bcftools mpileup --min-MQ 20 --min-BQ 20 -Ou 
 -b $HOME/dsm-genotyping/bamlists/samples.bamlist | \
 bcftools call -mv -Ov -o outputs/102/top90-high.vcf > outputs/102/call-high.out 2> outputs/102/call-high.err &
 ```
+
 Again a couple steps to normalize:
 ```{sh,e val=FALSE}
 #bgzip and bcftools index files
-bgzip outputs/102/top90-high.vcf
-bcftools index outputs/102/top90-high.vcf.gz
+srun -p high -t 1:00:00 --nodes=1 bgzip outputs/102/top90-high.vcf
+srun -p high -t 1:00:00 --nodes=1 bcftools index outputs/102/top90-high.vcf.gz
 
 #then
 srun -p med -t 8:00:00 --nodes=1 bcftools norm -c w outputs/102/top90-high.vcf.gz  \
 -f $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -Ov -o outputs/102/top90-high-norm.vcf 
 
 ```
+
+Lines   total/split/realigned/skipped:	586591/0/58921/0     
 
 Meanwhile      
 
@@ -92,23 +95,32 @@ vcftools --vcf outputs/102/top90-norm.vcf --remove-indels --min-alleles 2 --max-
  
  vcftools --vcf outputs/102/top90-norm.drop.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.1 --maf 0.1 --max-maf 0.4 --hwe 0.05 \
  --out outputs/102/top90-norm-filtered-drop --recode 
+ 
+vcftools --vcf outputs/102/top90-high-norm.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.05 --maf 0.1 --max-maf 0.4 --hwe 0.05 \
+ --out outputs/102/top90-high-norm-filtered --recode 
+ 
+vcftools --vcf outputs/102/top90-high-norm.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.05 --maf 0.05  --out outputs/102/top90-high-norm-light-filtered --recode 
 ```
 
 drop: kept 7929 out of a possible 549011 Sites
 
+top90-high kept 9817 sites    
+top90 light filter    27654 sites kept.    
 Running locally.....
 
 ```{sh, eval=FALSE}
 bcftools +fill-tags outputs/102/top90-norm-filtered.recode.vcf -- -t MAF > outputs/102/top90-norm-filtered.recode.MAF.vcf
 cat outputs/102/top90-norm-filtered.recode.MAF.vcf | cut -f 1,2,4,5,8 | grep -v "#" > outputs/102/top90-filtered.recode.MAF.txt
+
+bcftools +fill-tags outputs/102/top90-high-norm-filtered.recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/102/top90-high-norm-filtered.MAF.txt
+bcftools +fill-tags outputs/102/top90-high-norm-light-filtered.recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/102/top90-high-norm-light-filtered.MAF.txt
+
 ```
 
 
 Visualize MAF distribution:
 ```{r}
-contigs<-read_tsv("outputs/102/large-contigs.txt",col_names = c("Chromosome"))
-
-mafs<-read_tsv("outputs/102/top90-filtered.recode.MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+mafs<-read_tsv("outputs/102/top90-high-norm-filtered.MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
   separate(MAF, into=c("Type","Frequency"), sep="=")
 mafs$Frequency<-as.numeric(mafs$Frequency)
 min(mafs$Frequency)
@@ -129,18 +141,9 @@ ggplot(mafs) +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-Reduce to large contigs
+Already reduced to large contigs:
 ```{r}
-mafs2<-mafs %>% filter(Chromosome %in% contigs$Chromosome)
-ggplot(mafs2) +
-  geom_histogram(aes(x=Frequency)) +
-  ylab("Count\n") +
-  xlab("\nMinor Allele Frequency") +
-  theme_bw() +
-  theme(panel.grid = element_blank()) +
-  ggtitle("Histogram of Minor Allele Frequency\n") +
-  theme(plot.title = element_text(hjust = 0.5))
-
+unique(mafs$Chromosome)
 ```
 
 Pruning for fun.

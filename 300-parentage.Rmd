@@ -85,11 +85,14 @@ write_tsv(blast, "outputs/400/parentage-snps-blastn.tsv")
 
 Again, we have only 65 placed on the DSM genome. 
 
-Hmmm...
-
 ```{r}
-mafs<-read_tsv("outputs/101/doPlink-90-MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+#mafs<-read_tsv("outputs/101/doPlink-90-MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+ # separate(MAF, into=c("Type","Frequency"), sep="=")
+
+mafs<-read_tsv("outputs/102/top90-high-norm-filtered.MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
   separate(MAF, into=c("Type","Frequency"), sep="=")
+
+
 ```
 
 
@@ -106,16 +109,14 @@ Should be able to use multiple conditions, perhaps by joining then filtering.
 ```{r}
 matches<-blast2 %>% inner_join(mafs, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
 matches %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
-write_tsv(matches, "outputs/400/parentage-matches.txt")
+write_csv(matches, "outputs/400/parentage-matches.csv")
 ```
 
 What about not filtering of MAF/HWE?
-```{sh, eval=FALSE}
-bcftools +fill-tags outputs/101/doPlink-samples-90-recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/300/samples-90-nothwemaf.txt
-```
+
 
 ```{r}
-mafs2<-read_tsv("outputs/300/samples-90-nothwemaf.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+mafs2<-read_tsv("outputs/102/top90-high-norm-light-filtered.MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
   separate(MAF, into=c("Type","Frequency"), sep="=")
 ```
 
@@ -123,7 +124,7 @@ mafs2<-read_tsv("outputs/300/samples-90-nothwemaf.txt", col_names=c("Chromosome"
 ```{r}
 matches2<-blast2 %>% inner_join(mafs2, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
 matches2 %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
-write_tsv(matches2, "outputs/400/parentage-matches-no-maf-no-hwe.tsv")
+write_csv(matches2, "outputs/400/parentage-matches-light-filter-bcftools.csv")
 ```
 
-Only 16 match here...
+Looks like 

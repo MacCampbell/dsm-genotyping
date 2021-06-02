@@ -332,15 +332,34 @@ ggplot(mafs) +
 ```
 
 
-We should really have more SNPS. Trying this again, but, I think that maybe we should drop the low-coverage individuals some more.
+We should really have more SNPS. Trying this again, but, I think that maybe we should drop the low-coverage individuals some more. Arggh. ANGSD keeps having problems on the farm:     
+srun: Job step aborted: Waiting up to 132 seconds for job step to finish.     
+slurmstepd: error: *** STEP 34989260.0 ON c9-76 CANCELLED AT 2021-06-01T17:46:24 ***    
+srun: error: c9-76: task 0: Killed     
+srun: error: c9-77: task 1: Killed     
+
+Restricting to a single node.
 
 ```{sh, eval=FALSE}
-srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 618 -nthreads 24 \
+srun -t 36:00:00 -p high --mem=32G --nodes=1 $HOME/angsd/angsd -minInd 618 -nthreads 24 \
 -bam $HOME/dsm-genotyping/bamlists/samples.bamlist -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 -out $HOME/dsm-genotyping/outputs/101/snps-90  \
 -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/101/snps-90.out 2> outputs/101/snps-90.err &
 ```
+
+```{sh, eval=FALSE}
+plink --tped outputs/101/snps-90.tped --tfam outputs/101/snps-90.tfam --out outputs/101/snps-90.binary --recode --allow-extra-chr --noweb
+plink --ped outputs/101/snps-90.binary.ped --map outputs/101/snps-90.binary.map --recode vcf --allow-extra-chr -out outputs/101/snps-90-samples-recode
+vcftools --vcf outputs/101/snps-90-samples-recode.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.05 --maf 0.1 --max-maf 0.4 --hwe 0.05 \
+ --out outputs/101/snps-90-samples-recode-filtered --recode 
+bcftools +fill-tags outputs/101/snps-90-samples-recode-filtered.recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/101/snps-90-samples-recode-filtered.MAF.txt
+bcftools +fill-tags outputs/101/snps-90-samples-recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/101/snps-90-samples-recode.MAF.txt
+```
+5353 variants before filtering     
+1233 variants after filtering    
+
+
 
 ```{r}
 top75<-df %>% top_frac(.75, Counts) %>% filter(!(filename %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10","Ht19-21_2012_E03","Ht19-20_2012_D03")))
@@ -365,3 +384,16 @@ srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 516 -nthr
 -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/101/snps-75.out 2> outputs/101/snps-75.err &
 ```
+
+7702 snps with snps-75.tped
+
+```{sh, eval=FALSE}
+plink --tped outputs/101/snps-75.tped --tfam outputs/101/snps-75.tfam --out outputs/101/snps-75.binary --recode --allow-extra-chr --noweb
+plink --ped outputs/101/snps-75.binary.ped --map outputs/101/snps-75.binary.map --recode vcf --allow-extra-chr -out outputs/101/snps-75-samples-recode
+vcftools --vcf outputs/101/snps-75-samples-recode.vcf --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.05 --maf 0.1 --max-maf 0.4 --hwe 0.05 \
+ --out outputs/101/snps-75-samples-recode-filtered --recode 
+bcftools +fill-tags outputs/101/snps-75-samples-recode-filtered.recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/101/snps-75-samples-recode-filtered.MAF.txt
+bcftools +fill-tags outputs/101/snps-75-samples-recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/101/snps-75-samples-recode.MAF.txt
+```
+
+1989 sites after filtering

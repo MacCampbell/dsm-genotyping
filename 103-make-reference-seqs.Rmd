@@ -1,0 +1,16 @@
+---
+title: "103-make-reference seqs"
+author: "Mac Campbell"
+date: "June 2, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## I need to create seqs
+
+n flanks and then replace position with [Major/Minor].     
+
+Wrote extractFlanksandRecode.pl

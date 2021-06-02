@@ -14,42 +14,131 @@ library(tidyverse)
 library(RColorBrewer)
 ```
 
-##Summary of DSM variants
+## Summary of DSM variants
 
 We have a few data sources:    
 
 __1__ Genotype calls from RADseq (101-dsm-qc.html)     
 __2__ Benjamin et al. hybridization assay SNPS (200-hybrids.html)     
 __3__ Lew et al. parentage SNPs (300-parentage.html)     
-__4__ Sex marker, status ????      
-__5__ More of a 1b, I'm also throwing in a few Mac Campbell selects of life-history association
+__4__ More of a 1b, I'm also throwing in a few Mac Campbell selects of life-history association
 
 
 ### 1 Genotype Calls from RADseq
 
-### 2 Benjamin et al. hybridization assay SNPs
-There is the potential for amplification of highly-repetitive sequences, and I doubt that this is ideal for GTSeq. The three SNPs that seemed likely to have a problem are Longfin Smelt diagnostic (LFS_01, LFS_03, LFS_04). Twenty additional sites may be workable.
+Two types of MAFs - from a stricter and more relaxed filtering. The filtering applied was with vcftools to:     
+___1___ remove indels (non issue because using angsd here)    
+___2___ get biallelic variants (also should be a non issue)      
+___3___ have a missing data threshold (0.05)     
+___4___ bound MAF between 0.1 and 0.4     
+___5___ apply HWE filter (p threshold of 0.05)     
 
+`--remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.05 --maf 0.1 --max-maf 0.4 --hwe 0.05`       
+The light filtering using the outputs from angsd with minMaf 0.05           
+
+```{r, echo=FALSE}
+mafs<-read_tsv("outputs/101/snps-75-samples-recode-filtered.MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+  separate(MAF, into=c("Type","Frequency"), sep="=")
+
+mafs2<-read_tsv("outputs/101/snps-75-samples-recode.MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+  separate(MAF, into=c("Type","Frequency"), sep="=") %>% mutate(Type="RelaxedMAF")
+
+mafs$Frequency<-as.numeric(mafs$Frequency)
+mafs2$Frequency<-as.numeric(mafs2$Frequency)
+```
+
+```{r, echo=FALSE}
+bind_rows(mafs,mafs2) %>% group_by(Type) %>% summarize(min(Frequency), max(Frequency), mean(Frequency), Count=n())
+```
+
+There is a disagreement between how vcftools and angsd calculate minMaf.     
+
+Visualized, using density as the number of SNPs is very different.     
+
+```{r, echo=FALSE}
+ggplot(bind_rows(mafs,mafs2)) +
+  geom_freqpoly(aes(x=Frequency, after_stat(density))) +
+  ylab("Density\n") +
+  xlab("\nMinor Allele Frequency") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  ggtitle("Density of Minor Allele Frequency\n") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(.~Type, ncol=1)
+```
+
+### 2 Benjamin et al. hybridization assay SNPs
+There is the potential for amplification of highly-repetitive sequences, and I doubt that this is ideal for GTSeq. The three SNPs that seemed likely to have a problem are Longfin Smelt diagnostic (LFS_01, LFS_03, LFS_04). Fifteen to twenty additional sites may be workable. Provided is the output from blastn of hybridization assay sequences "query" against the DSM genome assembly "target" as a *.tsv (hybridization-snps-blastn.tsv). It is summarized below with Start and End referring to where the query aligned on the genome.      
+
+Duplicated seqs.    
+```{r, echo=FALSE}
+lens<-read_tsv("outputs/200/seq-lens.tsv", col_names = FALSE) %>% separate(X1, sep=" ", into=c("query","RADcontig","geno1","geno2","geno3")) %>%
+            select(query,X2) %>% rename(Length=X2)
+
+df<-read_tsv("outputs/200/blast.out", col_names = c("query", "target", "%id", "alignment-length", "diffs", "gaps", "query-start",
+                                                      "query-end", "target-start", "target-end", "e-value", "bitscore")) %>%
+  left_join(lens)
+df %>% group_by(query, Length) %>% summarize(Count=n()) %>% arrange(-Count) %>% head(n=6)
+
+write_csv(df, "outputs/400/hybridization-snps-blastn.csv")
+```
+
+Not duplicated based on blastn alignment-length > 0.5*Length of query.     
 ```{r}
-hybrid<-read_tsv("outputs/400/hybridization-snps-blastn.tsv") %>% mutate(ProportionAligned = `alignment-length`/Length) %>%
-                                                                  filter(ProportionAligned > 0.9) %>%
-                                                                  select(query, target, `%id`)
+ddf <- df %>% filter(`alignment-length`> .5*Length) %>% filter(!query %in% c("LFS_01","LFS_03","LFS_04")) %>%
+  mutate(Start=ifelse(`target-start` < `target-end`, `target-start`, `target-end`)) %>%
+          mutate(End=ifelse(`target-start` < `target-end`, `target-end`, `target-start`)) %>%
+          mutate(orient=End-Start)
+
+ddf %>% group_by(query) %>% summarize(Count=n()) %>% arrange(-Count)
+
+```
+
+Not duplicated based on aligning to > 90% of the DSM genome.     
+```{r}
+hybrid<-read_csv("outputs/400/hybridization-snps-blastn.csv") %>%
+        mutate(ProportionAligned = `alignment-length`/Length) %>%
+        filter(ProportionAligned > 0.90) %>% # aligning over 90% of the query
+        filter(!query %in% c("LFS_01","LFS_03","LFS_04")) %>%
+        mutate(Start=ifelse(`target-start` < `target-end`, `target-start`, `target-end`)) %>%
+        mutate(End=ifelse(`target-start` < `target-end`, `target-end`, `target-start`)) %>%
+        mutate(orient=End-Start)
+
+write_csv(hybrid, "outputs/400/hybridization-snps-to-try.csv")
 #ProportionAligned may be > 1 because gaps are permitted
-hybrid
+hybrid %>% select(query, target, `%id`, ProportionAligned, Start, End)
 ```
 There are a couple species diagnostic SNPs for each species to consider.     
 
-It looks there are SNPS near the diagnostic WKS_04 and WKS_07 and these should not be used. Overall, the SNPs called are not found near diagnostic SNPs.
+It looks there are similar sequences from diagnostics SNPS or diagnostic SNPs are near called SNPS and these probably should not be used. Overall, the SNPs called are not found near diagnostic SNPs.    
+```{r}
+dddf<-ddf %>% inner_join(mafs, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
+dddf %>% select(query, target, `%id`, Start, End, Position, Minor, Major, Type, Frequency)
+write_csv(dddf, "outputs/400/hybrid-matches.csv")
+```
 
 ### 3 Lew et al. parentage SNPs
 65 of these are placed on the genome, but,  Htr-GVL-A001607,Htr-GVL-059 exhibits duplication with some sort of duplicated ORF (3x alignments), for the most part the parentage snps align 1:1 and for the whole query sequence against the DSM genome assembly. Htr-GVL-A000366,Htr-GVL-029 does have two alignments, but one is short and of lower %id.  See parentage-snps-blastn.tsv.  
 
-The parentage SNPS relate to our genotype calls....
+The parentage SNPS relate to our genotype calls, but fall outside the hwe/maf thresholds for the most part. These overlap with the SNPs supplied:
 
-### 4 Sex Marker?
+```{r}
+
+blast<-read_tsv("outputs/300/blast.out", col_names = c("query", "target", "%id", "alignment-length", "diffs", "gaps", "query-start",
+                                                      "query-end", "target-start", "target-end", "e-value", "bitscore")) %>%
+                                                       mutate(Start=ifelse(`target-start` < `target-end`, `target-start`, `target-end`)) %>%
+                                                       mutate(End=ifelse(`target-start` < `target-end`, `target-end`, `target-start`)) %>%
+                                                       mutate(orient=End-Start)
+
+matches<-blast %>% inner_join(mafs, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
+matches %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
+
+write_csv(matches, "outputs/400/parentage-matches.csv")
+
+```
 
 
-### 5 DSM Life History Association
+### 4 DSM Life History Association
 
 Comparing Freshwater Resident (FWR) to Migratory (MIG) does show a couple SNPs of high association. From a dataset of fish born in 2012 with 61 FWR and 62 MIG individuals a few sites are indicated. Here are a couple ways to look at association testing results. A Bonferroni correction is used for a high-stringency result, I also calculate a less strict significance ratio using an odds ratio.
 ```{r, echo=FALSE}
@@ -67,8 +156,8 @@ prior.odds = p.T/(1-p.T)
 pwr = 1 #upper bound for power --> upper bound for alpha 
 post.odds = 0.95/(1-0.95) 
 alpha = prior.odds*pwr/post.odds 
-paste(signif(alpha,3)) 
--log10(alpha)
+#paste(signif(alpha,3)) 
+#-log10(alpha)
 
 arrange(dddf, -log10p) %>% filter(log10p > -log10(alpha)) 
 ```
@@ -79,7 +168,7 @@ lg02  11230464
 lg01  2467271      
 lg17  14078225     
 
-A visual example
+As Manhattan plot.     
 ```{r, echo=FALSE}
 data<-dddf # %>% filter(Chromosome %in% c("lg01","lg02"))
 dd <- data %>% ungroup %>% mutate(Index=1:n())
@@ -99,7 +188,7 @@ mycolors<-sample(mycolors)
 ggplot(dd) +
   geom_point(data=dd, aes(x=Index, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
   geom_point(data=outliers, aes(x=Index, y=log10p, fill=Chromosome), pch=21, cex=2, alpha=0.9) +
-  geom_hline(yintercept = -log10(0.05/nrow(df)), col="black", linetype=2, alpha=0.5) +
+  geom_hline(yintercept = -log10(0.05/nrow(dddf)), col="black", linetype=2, alpha=0.5) +
   geom_hline(yintercept= -log10(alpha), col="black", linetype=1, alpha=0.5) +
   theme_bw() +
   scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
@@ -117,15 +206,11 @@ ggplot(dd) +
 
 Are these found in our SNPS?    
 ```{r}
-mafs2<-read_tsv("outputs/300/samples-90-nothwemaf.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
-  separate(MAF, into=c("Type","Frequency"), sep="=")
+dslh<-arrange(dddf, -log10p)  %>% filter(log10p > -log10(alpha))
 
-dslh<-arrange(dddf, -log10p) %>% filter(log10p > -log10(alpha)) 
-
-dslh %>% left_join(mafs2, by=c("Chromosome"="Chromosome")) %>% filter(Position.x == Position.y)
+dslh %>% left_join(mafs2, by=c("Chromosome"="Chromosome")) %>% filter(Position.x == Position.y) %>%
+  select(Chromosome, Position.x, log10p, bonfer, Major.x, Major.y, Minor.x, Minor.y)
 ```
-None found?
+Found with changes to the Major/Minor alleles that seems fine.
 
-
- 
 

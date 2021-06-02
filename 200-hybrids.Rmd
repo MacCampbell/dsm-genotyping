@@ -184,7 +184,7 @@ How do these ddf snps relate to our SNPs of interest.
 
 ```{r}
 
-mafs<-read_tsv("outputs/101/doPlink-90-MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+mafs<-read_tsv("outputs/102/top90-high-norm-filtered.MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
   separate(MAF, into=c("Type","Frequency"), sep="=")
 
 dddf<-ddf %>% inner_join(mafs, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
