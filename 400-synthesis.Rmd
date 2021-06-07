@@ -12,6 +12,8 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
 ```{r, echo=FALSE}
 library(tidyverse)
 library(RColorBrewer)
+library(adegenet)
+library(vcfR)
 ```
 
 All analysis scripts are available at https://github.com/MacCampbell/dsm-genotyping. The basic series are 1xx for genotyping, 2xx for hybridization assays, 3xx for the parentage panel, and 4xx for combining the information. A /meta/ directory there contains various files associated with the samples or the papers that made the hybridization and parentage panels. In the compressed /400/ directory I am including files referenced in this .html and the sequences from Benjamin et al. and Lew et al. as .fastas.    
@@ -29,7 +31,7 @@ __4__ More of a 1b, I'm also throwing in a few Mac Campbell selects of life-hist
 
 ### 1 Genotype Calls from RADseq
 
-Basic genotyping calling. The large amount of low-coverage individuals caused me to use a smaller dataset see 101-dsm-qc.  The meta for the samples is available at meta/samples75.csv. I checked with a PCA for funny stuff, and excluded samples (e.g. putative Wakasagis). The resulting 687 samples had genotype calls produced by ANGSD and BCFTOOLs. Here is the command used for the calls included in this document:      
+Basic genotyping calling. I had 687 samples after I checked with a PCA for funny stuff, and excluded samples (e.g. putative Wakasagis). Meta at /meta/samples.csv. The large amount of low-coverage individuals caused me to use a smaller dataset see 101-dsm-qc.  The meta for the samples I used for genotype calling can be found in /meta/top75.csv  I examined genotype calls produced by ANGSD and BCFTOOLs, but kept ANGSD genotype calls for creating a SNP data set. Here is the command used for the calls included in this document:      
 
 ```{sh, eval=FALSE}
 srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 516 -nthreads 24 \
@@ -57,6 +59,7 @@ bcftools +fill-tags outputs/101/snps-75-samples-recode-filtered.recode.vcf -- -t
 bcftools +fill-tags outputs/101/snps-75-samples-recode.vcf -- -t MAF | cut -f 1,2,4,5,8 | grep -v "#" > outputs/101/snps-75-samples-recode.MAF.txt
 ```
 
+_MAFs_     
 
 Two types of MAFs - from a stricter and more relaxed filtering. The filtering applied was with vcftools to:     
 `--remove-indels --min-alleles 2 --max-alleles 2 --max-missing 0.05 --maf 0.1 --max-maf 0.4 --hwe 0.05`       
@@ -91,6 +94,164 @@ ggplot(bind_rows(mafs,mafs2)) +
   ggtitle("Density of Minor Allele Frequency\n") +
   theme(plot.title = element_text(hjust = 0.5)) +
   facet_wrap(.~Type, ncol=1)
+```
+
+
+_PCA_      
+How do the genotype calls look? Looking first at different libraries.      
+
+```{r, echo=FALSE, eval=FALSE}
+vcf<-read.vcfR(file="outputs/101/snps-75-samples-recode-filtered.recode.vcf")
+genind<-vcfR2genind(vcf)
+save(genind, file="outputs/101/recode.genind")
+
+vcf2<-read.vcfR(file="outputs/101/snps-75-samples-recode.vcf")
+genind2<-vcfR2genind(vcf2)
+save(genind2, file="outputs/101/recode.genind2")
+```
+
+PCA without filtering for HWE and MAFS, coloring by plate to see if there are any technical artifacts.      
+
+```{r, echo=FALSE}
+load("outputs/101/recode.genind2")
+X2 <- tab(genind2, NA.method="mean")
+pca2 <- dudi.pca(X2,scannf=FALSE,scale=FALSE, nf = 4)
+```
+
+```{r, echo=FALSE}
+snps75<-read_csv("meta/top75.csv")
+pcdf2<-as_tibble(pca2$l1) %>% rename(PC1=RS1, PC2=RS2, PC3=RS3, PC4=RS4) %>% bind_cols(snps75)
+pcdf2$`Birth year`<-as.factor(pcdf2$`Birth year`)
+eigens2<-as_tibble(pca2$eig) %>% rename(Eigen=value) %>% mutate(Porportion=Eigen/sum(Eigen)*100)
+
+ggplot(pcdf2)+geom_point(aes(x=PC1, y=PC2, fill = `Library Name`), alpha=0.75, size=2, pch=21)+
+  xlab(paste0("PC1 ", round(eigens2$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens2$Porportion[2],2),"%")) +
+  theme_bw()+
+  theme(panel.grid=element_blank()) +
+  theme(axis.title = element_text(face="bold")) +
+  theme(legend.title = element_text(face="bold")) +
+  scale_fill_viridis_d(option="magma")
+```
+
+Looks ok, now applying to the filtered dataset.      
+```{r, echo=FALSE}
+load("outputs/101/recode.genind")
+X <- tab(genind, NA.method="mean")
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE, nf=4)
+```
+
+```{r, echo=FALSE}
+snps75<-read_csv("meta/top75.csv")
+pcdf<-as_tibble(pca1$l1) %>% rename(PC1=RS1, PC2=RS2, PC3=RS3, PC4=RS4) %>% bind_cols(snps75)
+pcdf$`Birth year`<-as.factor(pcdf$`Birth year`)
+eigens<-as_tibble(pca1$eig) %>% rename(Eigen=value) %>% mutate(Porportion=Eigen/sum(Eigen)*100)
+
+ggplot(pcdf)+geom_point(aes(x=PC1, y=PC2, fill = `Library Name`), alpha=0.75, size=2, pch=21)+
+  xlab(paste0("PC1 ", round(eigens$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens$Porportion[2],2),"%")) +
+  theme_bw()+
+  theme(panel.grid=element_blank()) +
+  theme(axis.title = element_text(face="bold")) +
+  theme(legend.title = element_text(face="bold")) +
+  scale_fill_viridis_d(option="magma")
+
+```
+
+Looking at different birth years.      
+```{r,echo=FALSE}
+ggplot(pcdf)+geom_point(aes(x=PC1, y=PC2, fill = `Birth year`), alpha=0.75, size=2, pch=21)+
+  xlab(paste0("PC1 ", round(eigens$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens$Porportion[2],2),"%")) +
+  theme_bw()+
+  theme(panel.grid=element_blank()) +
+  theme(axis.title = element_text(face="bold")) +
+  theme(legend.title = element_text(face="bold")) +
+  scale_fill_viridis_d()
+```
+
+Looking at loadings:
+
+```{r}
+loads<-pca1$c1 %>% as_tibble()
+loads$Allele<-row.names(pca1$c1) 
+
+loads<-select(loads, Allele, CS1, CS2, CS3, CS4)
+
+loads %>% arrange(CS1) %>% head(n=20)
+```
+
+
+Pattern drivien by a bunch of SNPs on lg23 it looks like. Dropping some lg23 snps and redoing.
+```{r, echo=FALSE}
+
+vcf3<-read.vcfR(file="outputs/101/snps-75-samples-recode-filtered.recode-lg23-drop.vcf")
+genind3<-vcfR2genind(vcf3)
+X3 <- tab(genind3, NA.method="mean")
+
+pca3 <- dudi.pca(X3,scannf=FALSE,scale=FALSE, nf=2)
+
+pcdf3<-as_tibble(pca3$l1) %>% rename(PC1=RS1, PC2=RS2) %>% bind_cols(snps75)
+pcdf3$`Birth year`<-as.factor(pcdf3$`Birth year`)
+eigens3<-as_tibble(pca3$eig) %>% rename(Eigen=value) %>% mutate(Porportion=Eigen/sum(Eigen)*100)
+
+ggplot(pcdf3)+geom_point(aes(x=PC1, y=PC2, fill = `Library Name`), alpha=0.75, size=2, pch=21)+
+  xlab(paste0("PC1 ", round(eigens3$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens3$Porportion[2],2),"%")) +
+  theme_bw()+
+  theme(panel.grid=element_blank()) +
+  theme(axis.title = element_text(face="bold")) +
+  theme(legend.title = element_text(face="bold")) +
+  scale_fill_viridis_d(option="magma")
+
+```
+
+Those snps sure were influential!     
+
+
+```{r, echo=FALSE,eval=FALSE}
+#heatmap of snps if desired.
+library(gplots)
+library(poppr)
+
+vcf4<-read.vcfR(file="outputs/101/lg23.txt")
+genind4<-vcfR2genind(vcf4)
+
+g<-missingno(genind4, type = "genotype", cutoff=0.10)
+matrix<-genind2df(g) %>% as_tibble()
+Samples<-rownames(genind2df(g))
+
+matrix[matrix == " 00"] <- "0"
+matrix[matrix == " 01"] <- "1"
+matrix[matrix == "11"] <- "2"
+
+matrix2<- matrix %>%
+    mutate_all(type.convert) %>%
+    mutate_if(is.character, as.numeric) 
+heatmap.2(as.matrix(matrix2),
+          trace="none",
+          labRow = "",
+          key=FALSE,
+          dendrogram=c("row"),
+          srtCol=45,
+          hclustfun = function(x) hclust(x,method = 'ward.D')
+          )
+```
+
+
+_Distribution Across Years_    
+How are the samples spread across years?        
+```{r, echo=FALSE}
+
+t<-pcdf %>% group_by(`Birth year`) %>% summarize(Count=n())
+ggplot(t) +
+  geom_bar(aes(x=`Birth year`,y=Count, fill=`Birth year`), stat="identity") +
+  scale_fill_viridis_d() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  theme(axis.title = element_text(face="bold")) +
+  theme(legend.title = element_text(face="bold")) 
+
 ```
 
 _Sequence Files_      
@@ -153,14 +314,17 @@ The parentage SNPS relate to our genotype calls, but fall outside the hwe/maf th
 
 ```{r}
 
-blast<-read_tsv("outputs/300/blast.out", col_names = c("query", "target", "%id", "alignment-length", "diffs", "gaps", "query-start",
-                                                      "query-end", "target-start", "target-end", "e-value", "bitscore")) %>%
-                                                       mutate(Start=ifelse(`target-start` < `target-end`, `target-start`, `target-end`)) %>%
-                                                       mutate(End=ifelse(`target-start` < `target-end`, `target-end`, `target-start`)) %>%
-                                                       mutate(orient=End-Start)
+blast<-read_tsv("outputs/300/blast.out", 
+               col_names = c("query", "target", "%id", "alignment-length", "diffs", "gaps", "query-start",
+               "query-end", "target-start", "target-end", "e-value", "bitscore")) %>%
+               mutate(Start=ifelse(`target-start` < `target-end`, `target-start`, `target-end`)) %>%
+               mutate(End=ifelse(`target-start` < `target-end`, `target-end`, `target-start`)) %>%
+               mutate(orient=End-Start)
 
-matches<-blast %>% inner_join(mafs, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
-matches %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
+matches<-blast %>% inner_join(mafs, by=c("target"="Chromosome")) %>% 
+  filter(Position > Start) %>% filter(Position < End)
+
+matches %>% select(query, target, Start, End, Position, Minor, Major, Type, Frequency)
 
 write_csv(matches, "outputs/400/parentage-matches.csv")
 
@@ -171,7 +335,7 @@ write_csv(matches, "outputs/400/parentage-matches.csv")
 
 Comparing Freshwater Resident (FWR) to Migratory (MIG) does show a couple SNPs of high association. From a dataset of fish born in 2012 with 61 FWR and 62 MIG individuals a few sites are indicated. Here are a couple ways to look at association testing results. A Bonferroni correction is used for a high-stringency result, I also calculate a less strict significance ratio using an odds ratio.
 ```{r, echo=FALSE}
-dddf<-read_tsv(file="outputs/400/assoc05-75.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+dddf<-read_tsv(file="outputs/assoc05-75.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
   filter(log10p>=0 & log10p != "Inf") %>%
   mutate(p = dchisq(LRT, df=1)) %>%
   mutate(bonfer = p.adjust(p, method = "bonferroni"))
