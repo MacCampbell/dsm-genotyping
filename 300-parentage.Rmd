@@ -127,4 +127,9 @@ matches2 %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
 write_csv(matches2, "outputs/400/parentage-matches-light-filter-bcftools.csv")
 ```
 
-Looks like 
+## Primer design
+Jennifer designed some primers from short seqs, I will try to extract the larger flanking sequences. I can use faidx to get the flanking data, or, perhaps identify the polymorphic site....
+
+This is a bit annoying as the flanking lengths around polymorphic sites in lew et al. aren't the same distance.... We can use the probable variable sites from 'parentage-matches-light-filter-bcftools.csv' using 103-xxx files.
+`(base) Macs-MacBook-Pro-2:300 mac$ cat ../400/parentage-matches-light-filter-bcftools.csv | cut -d ',' -f 3,17,18,19 | perl -pe 's/,/\t/g' > to-extract.csv`
+
