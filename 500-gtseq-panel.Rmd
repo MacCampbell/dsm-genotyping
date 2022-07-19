@@ -76,12 +76,49 @@ Combine!
 
 ```{r}
 total<-bind_rows(select(genos, Loci, Status, Plink), hybrs, select(padrs, Loci, Status, Plink))
-write_tsv(select(total,Plink), col_names = FALSE, "meta/round3-snps.tsv")
+write_tsv(distinct(select(total,Plink)), col_names = FALSE, "meta/round3-snps.tsv")
 total
 ```
 
 ## Calc LD
 
 Now, I can calculate ld with plink. in `(base) maccamp@farm:~/dsm-genotyping/outputs/500$`     
+By default, it doesn't calculate between chromosomes. Also,  --ld-window 10 --ld-window-kb 1000 --ld-window-r2 0.2
 
 
+
+```{sh, eval=FALSE}
+ln -s ../101/snps-75.* .
+plink --tped snps-75.tped --tfam snps-75.tfam --r2 inter-chr --ld-window-r2 0 --ld-snp-list ../../meta/round3-snps.tsv --noweb --allow-extra-chr
+```
+
+Yields 2,996,860 comparisons including self comparisons (390 of those!) and it looks like the --ld-snp-list calculated between it and all other options.
+
+```{sh, eval=FALSE}
+awk '{ if ($3 != $6) { print } }' plink.ld | awk '{ if ($7 > 0.01) { print } }' > plink-reduced.ld
+```
+66424 comparisons!
+
+```{r}
+ld<-read.delim("outputs/500/plink-reduced.ld",sep="",stringsAsFactors=FALSE) %>% as_tibble()
+ld
+```
+
+
+```{r}
+lds<-filter(ld, SNP_A %in% total$Plink) %>% filter(SNP_B %in% total$Plink)
+lds
+```
+
+
+```{r}
+comb<-left_join(lds, total, by=c("SNP_A"="Plink")) %>% rename(Locus_A=Loci, Status_A=Status) %>% left_join(total, by=c("SNP_B"="Plink")) %>% rename(Locus_B=Loci,
+                                                                                                                                                     Status_B=Status)
+comb
+write_csv(comb, "outputs/500/ld-calcs-GTSeq-round3.csv")
+```
+
+High rollers.      
+```{r}
+comb %>% filter(R2 > 0.1) %>% arrange (-R2) 
+```
