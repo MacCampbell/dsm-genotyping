@@ -188,7 +188,7 @@ mafs<-read_tsv("outputs/102/top90-high-norm-filtered.MAF.txt", col_names=c("Chro
   separate(MAF, into=c("Type","Frequency"), sep="=")
 
 dddf<-ddf %>% inner_join(mafs, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
-dddf %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
+dddf %>% select(query, Start, End, target, Position, Minor, Major, Type, Frequency)
 write_tsv(dddf, "outputs/400/hybrid-matches.txt")
 ```
 
@@ -197,7 +197,7 @@ mafs2<-read_tsv("outputs/300/samples-90-nothwemaf.txt", col_names=c("Chromosome"
   separate(MAF, into=c("Type","Frequency"), sep="=")
 
 dddf2<-ddf %>% inner_join(mafs2, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
-dddf2 %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
+dddf2 %>% select(query, Start, End, target, Position, Minor, Major, Type, Frequency)
 write_tsv(dddf2, "outputs/400/hybrid-matches-nomaf-nohwe.tsv")
 ```
 

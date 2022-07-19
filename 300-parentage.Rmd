@@ -108,7 +108,7 @@ Should be able to use multiple conditions, perhaps by joining then filtering.
 
 ```{r}
 matches<-blast2 %>% inner_join(mafs, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
-matches %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
+matches %>% select(query, Start, End, target, Position, Minor, Major, Type, Frequency)
 write_csv(matches, "outputs/400/parentage-matches.csv")
 ```
 
@@ -123,7 +123,7 @@ mafs2<-read_tsv("outputs/102/top90-high-norm-light-filtered.MAF.txt", col_names=
 
 ```{r}
 matches2<-blast2 %>% inner_join(mafs2, by=c("target"="Chromosome")) %>% filter(Position > Start) %>% filter(Position < End)
-matches2 %>% select(query, Start, End, Position, Minor, Major, Type, Frequency)
+matches2 %>% select(query, Start, End, target, Position, Minor, Major, Type, Frequency)
 write_csv(matches2, "outputs/400/parentage-matches-light-filter-bcftools.csv")
 ```
 
@@ -131,5 +131,10 @@ write_csv(matches2, "outputs/400/parentage-matches-light-filter-bcftools.csv")
 Jennifer designed some primers from short seqs, I will try to extract the larger flanking sequences. I can use faidx to get the flanking data, or, perhaps identify the polymorphic site....
 
 This is a bit annoying as the flanking lengths around polymorphic sites in lew et al. aren't the same distance.... We can use the probable variable sites from 'parentage-matches-light-filter-bcftools.csv' using 103-xxx files.
-`(base) Macs-MacBook-Pro-2:300 mac$ cat ../400/parentage-matches-light-filter-bcftools.csv | cut -d ',' -f 3,17,18,19 | perl -pe 's/,/\t/g' > to-extract.csv`
+`(base) Macs-MacBook-Pro-2:300 mac$ cat ../400/parentage-matches-light-filter-bcftools.csv | cut -d ',' -f 3,17,18,19,21 | perl -pe 's/,/\t/g' > to-extract.csv`
+`(base) Macs-MacBook-Pro-2:300 mac$ scp -P 2022 to-extract.csv farm:~/dsm-genotyping/outputs/300/`
+
+Now on farm (dropping first line of to-extract.csv out, and it is a tsv, sigh)    
+
+
 

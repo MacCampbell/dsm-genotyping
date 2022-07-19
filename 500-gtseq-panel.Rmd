@@ -1,0 +1,87 @@
+---
+title: "500-gtseq-panel"
+author: "Mac Campbell"
+date: "7/19/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## Primers
+
+A list of sites included in the GTSeq panel was sent out by J. von Bargen on 07/10/2022. Reading in as .tsv
+
+```{r}
+sites<-read_tsv("meta/status-round3.tsv")
+sites %>% group_by(Status) %>% summarize(Count=n())
+```
+
+
+Sitelist includes genotypes, hybridization assay sites and parentage SNPS.
+
+```{r}
+geno<-sites[str_starts(sites$Loci, "lg|scaffold"),] %>% filter(Status=="KEEP")
+hybr<-sites[str_starts(sites$Loci, "DSM|LFS|WKS"),] %>% filter(Status=="KEEP")
+padr<-sites[str_starts(sites$Loci, "Htr-GVL"),    ] %>% filter(Status=="KEEP")
+
+#Should sum to 415
+length(geno$Loci)+length(hybr$Loci)+length(padr$Loci)
+```
+
+## Corresponding Sites
+
+_1_ Genotypes       
+These should be the same as the file, just need to check naming against plink file. Plink file looks like this "lg01 lg01_150209 0 150209", we have "lg01-site-xxxxxx"
+
+```{r}
+genos<-tidyr::separate(geno, Loci, into=c("Chrom","Null","Site"), sep="-", remove=FALSE, extra="drop") %>% select(-Null) %>%
+  mutate(Plink=paste0(Chrom, "_", Site))
+genos
+```
+
+_2_ Hybridization     
+I aligned via blast, and some of them were invariant in DSM as expected, and won't be in the genotype file.     
+Should expect these two.     
+1 WKS_04 8426928 8427685 lg07    8427639 A     G     PR;MAF 0.120061     
+2 WKS_07  728701  729080 lg08     728783 T     A     PR;MAF 0.25627      
+
+```{r}
+v1<-c("WKS_04","WKS_07")
+v2<-c("lg07","lg08")
+v3<-c("8427639","728783")
+
+hybrs<-cbind(v1,v2,v3) %>% as_tibble() %>% rename(Loci=v1, Chrom=v2, Position=v3) %>% mutate(Plink=paste0(Chrom, "_", Position)) %>% mutate(Status="Keep") %>% select(Loci, Status, Plink)
+hybrs
+```
+
+
+_3_ Parentage SNPS
+These should be in our set.  Let's pull, using a less stringent set bc some of these didn't pass the filters.     
+```{r}
+assay<-read_csv("outputs/400/parentage-matches-light-filter-bcftools.csv") %>% select(query, target, Position, Start, End) %>% separate(query, into=c("Name1","Name2"), sep=",")
+# Only know some of the positions, so left_join this way
+# Some are duplicated
+
+padrs<-left_join(padr, assay, by=c("Loci"="Name1")) %>% mutate(Plink=paste0(target, "_", Position))
+padrs
+```
+
+Combine!
+
+```{r}
+total<-bind_rows(select(genos, Loci, Status, Plink), hybrs, select(padrs, Loci, Status, Plink))
+write_tsv(select(total,Plink), col_names = FALSE, "meta/round3-snps.tsv")
+total
+```
+
+## Calc LD
+
+Now, I can calculate ld with plink. in `(base) maccamp@farm:~/dsm-genotyping/outputs/500$`     
+
+
