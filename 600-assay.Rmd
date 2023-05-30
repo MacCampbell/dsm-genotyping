@@ -1,0 +1,92 @@
+---
+title: "600-assay"
+output: html_document
+date: "2023-05-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## SNP Chip Assay
+
+We want 250 variants, sorted by MAF, that are present in the GTSeq analysis to use for SNP chip. Need a meta spreadsheet and a fasta file with flanking data.     
+
+Let's get our MAFs   
+```{r}
+mafs<-read_tsv("outputs/101/snps-75-samples-recode-filtered.MAF.txt", col_names=c("Chromosome","Position","Minor","Major","MAF"))  %>%
+  separate(MAF, into=c("Type","Frequency"), sep="=")
+```
+
+Filter to SNPs in GTseq panel    
+
+```{r}
+sites<-read_tsv("meta/status-round3.tsv")
+sites %>% group_by(Status) %>% summarize(Count=n())
+geno<-sites[str_starts(sites$Loci, "lg|scaffold"),] %>% filter(Status=="KEEP")
+hybr<-sites[str_starts(sites$Loci, "DSM|LFS|WKS"),] %>% filter(Status=="KEEP")
+padr<-sites[str_starts(sites$Loci, "Htr-GVL"),    ] %>% filter(Status=="KEEP")
+
+#Should sum to 415
+length(geno$Loci)+length(hybr$Loci)+length(padr$Loci)
+```
+
+
+Genos I called, there are 346 of them.       
+```{r}
+genos<-tidyr::separate(geno, Loci, into=c("Chromosome","Null","Position"), sep="-", remove=FALSE, extra="drop") %>% select(-Null) 
+
+genos$Position<-as.numeric(genos$Position)
+genos
+```
+
+
+Combine with MAFs     
+
+```{r}
+assaym<-genos %>% left_join(mafs) %>% mutate(Category="Unselected")
+assaym$Frequency<-as.numeric(assaym$Frequency)
+
+top250<-assaym %>% top_n(250, Frequency) %>% mutate(Category="Selected")
+```
+
+```{r}
+ggplot(bind_rows(assaym, top250)) +
+  geom_density(aes(x=Frequency)) +
+  ylab("Density\n") +
+  xlab("\nMinor Allele Frequency") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  ggtitle("Density of Minor Allele Frequency\n") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_grid(Category ~.)
+```
+
+
+### Print out top 250 by maf
+
+```{r}
+write_csv(top250, "meta/snp-chip-assay-250.csv")
+```
+
+Checking LD
+
+```{r}
+ld<-read_csv("outputs/500/ld-calcs-GTSeq-round3.csv") %>% filter(R2 > 0.1) %>% arrange (-R2) %>%
+  select(SNP_A, SNP_B, R2)
+write_csv(ld, "meta/snp-chip-assay-250-high-ld-snps.csv")
+```
+
+
+Select SNPs from FASTA
+`(base) Macs-MacBook-Pro-2:600 mac$ cat ../../meta/snp-chip-assay-250.csv | cut -f 1 -d ',' | while read line; do grep -A 1 $line- ../400/snps-75-samples-recode-filtered.fasta >> snp-chip-assay-250.fasta ; done;  `     
+       
+`(base) Macs-MacBook-Pro-2:600 mac$ grep ">" snp-chip-assay-250.fasta | wc -l     
+     250`     
+
+Has 250 sites.     
+
