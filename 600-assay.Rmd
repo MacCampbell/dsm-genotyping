@@ -51,7 +51,12 @@ Combine with MAFs
 assaym<-genos %>% left_join(mafs) %>% mutate(Category="Unselected")
 assaym$Frequency<-as.numeric(assaym$Frequency)
 
+mean(na.omit(assaym$Frequency))
+median(na.omit(assaym$Frequency))
+
 top250<-assaym %>% top_n(250, Frequency) %>% mutate(Category="Selected")
+mean(top250$Frequency)
+median(top250$Frequency)
 ```
 
 ```{r}
