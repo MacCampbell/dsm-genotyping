@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
 ## I need to create seqs
 
-n flanks and then replace position with [Major/Minor].     
+Get flanks and then replace position with [Major/Minor].     
 
 Wrote extractFlanksandRecode.pl, should work on outputs/101/snps-75-samples-recode-filtered.MAF.txt
 
